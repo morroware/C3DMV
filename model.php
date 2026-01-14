@@ -175,6 +175,14 @@ foreach ($relatedModels as $index => $rm) {
                         </div>
                     </div>
 
+                    <!-- Keyboard Shortcuts Hint -->
+                    <div class="keyboard-hints" style="margin-top: 12px; display: flex; gap: 16px; flex-wrap: wrap; justify-content: center;">
+                        <span class="kbd-hint"><kbd>R</kbd> Rotate</span>
+                        <span class="kbd-hint"><kbd>W</kbd> Wireframe</span>
+                        <span class="kbd-hint"><kbd>F</kbd> Fullscreen</span>
+                        <span class="kbd-hint"><kbd>S</kbd> Screenshot</span>
+                    </div>
+
                     <!-- Fullscreen Viewer -->
                     <div class="viewer-fullscreen" id="fullscreen-viewer">
                         <button class="btn btn-secondary btn-icon fullscreen-close" onclick="closeFullscreen()">
@@ -262,19 +270,35 @@ foreach ($relatedModels as $index => $rm) {
                     
                     <!-- Actions -->
                     <div class="model-actions">
-                        <button class="btn btn-primary btn-lg" onclick="downloadModel('<?= $modelId ?>')">
+                        <?php if ($fileCount > 1): ?>
+                        <button class="btn btn-primary btn-lg" onclick="downloadAllFiles()" style="width: 100%;">
+                            <i class="fas fa-file-archive"></i> Download All (<?= $fileCount ?> files)
+                        </button>
+                        <div class="download-individual" style="margin-top: 8px;">
+                            <span style="font-size: 0.85rem; color: var(--text-muted);">Or download individually:</span>
+                            <div style="display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px;">
+                                <?php foreach ($files as $idx => $f): ?>
+                                <button class="btn btn-outline btn-sm" onclick="downloadSingleFile(<?= $idx ?>)" title="<?= sanitize($f['original_name']) ?>">
+                                    <i class="fas fa-download"></i> <?= sanitize(substr($f['original_name'], 0, 12)) ?><?= strlen($f['original_name']) > 12 ? '...' : '' ?>
+                                </button>
+                                <?php endforeach; ?>
+                            </div>
+                        </div>
+                        <?php else: ?>
+                        <button class="btn btn-primary btn-lg" onclick="downloadModel('<?= $modelId ?>')" style="width: 100%;">
                             <i class="fas fa-download"></i> Download STL
                         </button>
-                        <div style="display: flex; gap: 12px;">
-                            <button class="btn btn-secondary" onclick="likeModel('<?= $modelId ?>')" id="like-btn">
-                                <i class="fas fa-heart"></i> 
+                        <?php endif; ?>
+                        <div style="display: flex; gap: 12px; margin-top: 12px;">
+                            <button class="btn btn-secondary" onclick="likeModel('<?= $modelId ?>')" id="like-btn" style="flex: 1;">
+                                <i class="fas fa-heart"></i>
                                 <span id="like-count"><?= $model['likes'] ?? 0 ?></span>
                             </button>
                             <?php if (isLoggedIn()): ?>
-                                <button class="btn btn-secondary <?= $isFavorited ? 'active' : '' ?>" 
-                                        onclick="favoriteModel('<?= $modelId ?>')" id="fav-btn"
+                                <button class="btn btn-secondary <?= $isFavorited ? 'active' : '' ?>"
+                                        onclick="favoriteModel('<?= $modelId ?>')" id="fav-btn" style="flex: 1;"
                                         style="<?= $isFavorited ? 'border-color: var(--neon-magenta); color: var(--neon-magenta);' : '' ?>">
-                                    <i class="fas fa-bookmark"></i> 
+                                    <i class="fas fa-bookmark"></i>
                                     <?= $isFavorited ? 'Saved' : 'Save' ?>
                                 </button>
                             <?php endif; ?>
@@ -392,6 +416,12 @@ foreach ($relatedModels as $index => $rm) {
         let currentModelColor = 0x00f0ff;
         let currentStlUrl = '';
 
+        // Files data for multi-file downloads
+        const modelFiles = <?= json_encode(array_map(fn($f) => [
+            'filename' => $f['filename'],
+            'original_name' => $f['original_name'] ?? pathinfo($f['filename'], PATHINFO_FILENAME)
+        ], $files)) ?>;
+
         // Initialize after DOM ready
         document.addEventListener('DOMContentLoaded', () => {
             const viewerContainer = document.getElementById('main-viewer');
@@ -458,9 +488,39 @@ foreach ($relatedModels as $index => $rm) {
                 btn.addEventListener('click', openFullscreen);
             });
 
-            // ESC to close fullscreen
+            // Keyboard shortcuts
             document.addEventListener('keydown', (e) => {
-                if (e.key === 'Escape') closeFullscreen();
+                // Don't trigger if typing in an input
+                if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+
+                const key = e.key.toLowerCase();
+                const viewer = document.getElementById('main-viewer')?._viewer;
+
+                switch (key) {
+                    case 'escape':
+                        closeFullscreen();
+                        break;
+                    case 'r':
+                        if (viewer) {
+                            const btn = document.querySelector('[data-viewer-control="rotate"]');
+                            btn?.classList.toggle('active');
+                            viewer.setAutoRotate(btn?.classList.contains('active'));
+                        }
+                        break;
+                    case 'w':
+                        if (viewer) {
+                            const btn = document.querySelector('[data-viewer-control="wireframe"]');
+                            btn?.classList.toggle('active');
+                            viewer.setWireframe(btn?.classList.contains('active'));
+                        }
+                        break;
+                    case 'f':
+                        openFullscreen();
+                        break;
+                    case 's':
+                        takeScreenshot();
+                        break;
+                }
             });
         });
 
@@ -566,6 +626,34 @@ foreach ($relatedModels as $index => $rm) {
                 fullscreenViewer.dispose();
                 fullscreenViewer = null;
             }
+        }
+
+        // Download all files sequentially
+        async function downloadAllFiles() {
+            Toast.info(`Downloading ${modelFiles.length} files...`);
+
+            for (let i = 0; i < modelFiles.length; i++) {
+                await new Promise(resolve => setTimeout(resolve, 300)); // Small delay between downloads
+                downloadSingleFile(i);
+            }
+
+            // Increment download count once
+            try {
+                await API.downloadModel('<?= $modelId ?>');
+            } catch (e) {}
+        }
+
+        // Download a single file by index
+        function downloadSingleFile(index) {
+            const file = modelFiles[index];
+            if (!file) return;
+
+            const link = document.createElement('a');
+            link.href = 'uploads/' + file.filename;
+            link.download = file.original_name + '.stl';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
         }
 
         async function downloadModel(id) {

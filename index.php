@@ -7,7 +7,6 @@ require_once __DIR__ . '/includes/config.php';
 require_once __DIR__ . '/includes/db.php';
 
 $categories = getCategories();
-$stats = getStats();
 $recentModels = searchModels('', null, 'newest');
 $recentModels = array_slice($recentModels, 0, 8);
 
@@ -105,40 +104,6 @@ foreach ($trendingModels as $index => $model) {
                     <a href="#recent-models" class="btn btn-secondary btn-lg">
                         <i class="fas fa-clock"></i> Recent Uploads
                     </a>
-                </div>
-            </div>
-        </section>
-
-        <!-- Animated Stats Section -->
-        <section class="container">
-            <div class="stats-grid">
-                <div class="stat-card hover-lift">
-                    <div class="stat-card-icon">
-                        <i class="fas fa-cube"></i>
-                    </div>
-                    <div class="stat-card-value" data-count="<?= $stats['total_models'] ?>">0</div>
-                    <div class="stat-card-label">3D Models</div>
-                </div>
-                <div class="stat-card hover-lift">
-                    <div class="stat-card-icon">
-                        <i class="fas fa-users"></i>
-                    </div>
-                    <div class="stat-card-value" data-count="<?= $stats['total_users'] ?>">0</div>
-                    <div class="stat-card-label">Community Members</div>
-                </div>
-                <div class="stat-card hover-lift">
-                    <div class="stat-card-icon">
-                        <i class="fas fa-download"></i>
-                    </div>
-                    <div class="stat-card-value" data-count="<?= $stats['total_downloads'] ?>">0</div>
-                    <div class="stat-card-label">Downloads</div>
-                </div>
-                <div class="stat-card hover-lift">
-                    <div class="stat-card-icon">
-                        <i class="fas fa-folder"></i>
-                    </div>
-                    <div class="stat-card-value" data-count="<?= $stats['total_categories'] ?>">0</div>
-                    <div class="stat-card-label">Categories</div>
                 </div>
             </div>
         </section>
@@ -349,48 +314,5 @@ foreach ($trendingModels as $index => $model) {
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/STLLoader.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
     <script src="js/app.js"></script>
-    <script>
-        // Animated counter for stats
-        function animateCounters() {
-            const counters = document.querySelectorAll('[data-count]');
-            const duration = 2000;
-            const frameDuration = 1000 / 60;
-            const totalFrames = Math.round(duration / frameDuration);
-
-            counters.forEach(counter => {
-                const target = parseInt(counter.dataset.count) || 0;
-                let frame = 0;
-
-                const easeOutQuad = t => t * (2 - t);
-
-                const animate = () => {
-                    frame++;
-                    const progress = easeOutQuad(frame / totalFrames);
-                    const current = Math.round(target * progress);
-                    counter.textContent = current.toLocaleString();
-
-                    if (frame < totalFrames) {
-                        requestAnimationFrame(animate);
-                    } else {
-                        counter.textContent = target.toLocaleString();
-                    }
-                };
-
-                // Start animation when element is in view
-                const observer = new IntersectionObserver((entries) => {
-                    entries.forEach(entry => {
-                        if (entry.isIntersecting) {
-                            animate();
-                            observer.unobserve(entry.target);
-                        }
-                    });
-                }, { threshold: 0.5 });
-
-                observer.observe(counter);
-            });
-        }
-
-        document.addEventListener('DOMContentLoaded', animateCounters);
-    </script>
 </body>
 </html>
