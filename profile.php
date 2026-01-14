@@ -206,7 +206,7 @@ $currentUser = isLoggedIn() ? getCurrentUser() : null;
                             <?php $category = getCategory($model['category']); ?>
                             <div class="card model-card">
                                 <div class="model-card-preview">
-                                    <div class="preview-placeholder">
+                                    <div class="preview-placeholder" data-stl-thumb="uploads/<?= sanitize($model['filename']) ?>">
                                         <i class="fas fa-cube"></i>
                                     </div>
                                     <div class="model-card-overlay">
@@ -257,7 +257,7 @@ $currentUser = isLoggedIn() ? getCurrentUser() : null;
                                 <?php $category = getCategory($model['category']); ?>
                                 <div class="card model-card">
                                     <div class="model-card-preview">
-                                        <div class="preview-placeholder">
+                                        <div class="preview-placeholder" data-stl-thumb="uploads/<?= sanitize($model['filename']) ?>">
                                             <i class="fas fa-cube"></i>
                                         </div>
                                         <div class="model-card-overlay">
@@ -344,6 +344,9 @@ $currentUser = isLoggedIn() ? getCurrentUser() : null;
         </div>
     </footer>
 
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/STLLoader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
     <script src="js/app.js"></script>
     <script>
         function showTab(tab) {
