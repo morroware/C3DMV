@@ -125,19 +125,30 @@ foreach ($recentModels as $index => $model) {
                 </h2>
                 <a href="browse.php" class="btn btn-outline btn-sm">View All</a>
             </div>
-            
-            <div class="category-grid">
-                <?php foreach ($categories as $cat): ?>
-                    <a href="browse.php?category=<?= $cat['id'] ?>" class="category-card">
-                        <div class="category-icon">
-                            <i class="fas <?= sanitize($cat['icon']) ?>"></i>
-                        </div>
-                        <div class="category-info">
-                            <h3><?= sanitize($cat['name']) ?></h3>
-                            <span class="category-count"><?= $cat['count'] ?> models</span>
-                        </div>
-                    </a>
-                <?php endforeach; ?>
+
+            <div class="category-panel">
+                <div class="category-panel-copy">
+                    <span class="eyebrow">Find the perfect part fast</span>
+                    <h3>Filter by arcade use-case</h3>
+                    <p>Explore curated categories to spotlight the most essential models in the vault.</p>
+                </div>
+                <form class="category-form" action="browse.php" method="GET">
+                    <label for="category-select">Select a category</label>
+                    <div class="category-select">
+                        <select id="category-select" name="category">
+                            <option value="">All categories</option>
+                            <?php foreach ($categories as $cat): ?>
+                                <option value="<?= $cat['id'] ?>">
+                                    <?= sanitize($cat['name']) ?> (<?= $cat['count'] ?>)
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                        <i class="fas fa-chevron-down"></i>
+                    </div>
+                    <button type="submit" class="btn btn-primary btn-lg">
+                        <i class="fas fa-filter"></i> Apply Filter
+                    </button>
+                </form>
             </div>
         </section>
 

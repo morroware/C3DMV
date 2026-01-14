@@ -134,6 +134,20 @@ h4 { font-size: 1.25rem; }
     text-shadow: 0 0 10px var(--neon-cyan), 0 0 20px rgba(0, 240, 255, 0.5);
 }
 
+.eyebrow {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 12px;
+    border-radius: 999px;
+    background: rgba(0, 240, 255, 0.12);
+    color: var(--neon-cyan);
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
 /* ============================================================================
    LAYOUT
    ============================================================================ */
@@ -781,55 +795,87 @@ h4 { font-size: 1.25rem; }
 }
 
 /* ============================================================================
-   CATEGORY CARDS
+   CATEGORY PANEL
    ============================================================================ */
 
-.category-grid {
+.category-panel {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
-    gap: 20px;
-}
-
-.category-card {
-    display: flex;
-    align-items: center;
-    gap: 16px;
-    padding: 20px;
-    background: var(--bg-card);
+    grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+    gap: 32px;
+    padding: 32px;
+    background: linear-gradient(135deg, rgba(10, 10, 15, 0.95), rgba(26, 26, 37, 0.95));
     border: 1px solid var(--border-color);
     border-radius: var(--radius-lg);
-    transition: all var(--transition-fast);
-    text-decoration: none;
-    color: var(--text-primary);
+    box-shadow: var(--shadow-card);
+    position: relative;
+    overflow: hidden;
 }
 
-.category-card:hover {
-    border-color: var(--neon-cyan);
-    transform: translateX(4px);
-    color: var(--text-primary);
+.category-panel::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    border: 1px solid rgba(0, 240, 255, 0.2);
+    pointer-events: none;
 }
 
-.category-icon {
-    width: 50px;
-    height: 50px;
-    background: var(--bg-elevated);
-    border-radius: var(--radius-md);
+.category-panel-copy h3 {
+    font-size: 1.8rem;
+    margin: 12px 0;
+}
+
+.category-panel-copy p {
+    color: var(--text-secondary);
+    max-width: 420px;
+}
+
+.category-form {
+    background: rgba(13, 13, 20, 0.85);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    padding: 24px;
     display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 1.4rem;
-    color: var(--neon-cyan);
-    flex-shrink: 0;
+    flex-direction: column;
+    gap: 16px;
 }
 
-.category-info h3 {
-    font-size: 1rem;
-    margin-bottom: 4px;
-}
-
-.category-count {
+.category-form label {
     font-size: 0.85rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
     color: var(--text-muted);
+}
+
+.category-select {
+    position: relative;
+}
+
+.category-select select {
+    width: 100%;
+    appearance: none;
+    border: 1px solid var(--border-color);
+    background: var(--bg-input);
+    color: var(--text-primary);
+    padding: 14px 44px 14px 16px;
+    border-radius: var(--radius-md);
+    font-size: 1rem;
+    transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.category-select select:focus {
+    outline: none;
+    border-color: var(--neon-cyan);
+    box-shadow: 0 0 0 2px rgba(0, 240, 255, 0.15);
+}
+
+.category-select i {
+    position: absolute;
+    top: 50%;
+    right: 16px;
+    transform: translateY(-50%);
+    color: var(--text-secondary);
+    pointer-events: none;
 }
 
 /* ============================================================================
@@ -1501,6 +1547,10 @@ h4 { font-size: 1.25rem; }
     .model-grid {
         grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
     }
+
+    .category-panel {
+        grid-template-columns: 1fr;
+    }
 }
 
 @media (max-width: 480px) {
@@ -1528,6 +1578,10 @@ h4 { font-size: 1.25rem; }
     .hero-actions .btn {
         width: 100%;
         justify-content: center;
+    }
+
+    .category-panel {
+        padding: 24px;
     }
     
     .auth-card {
