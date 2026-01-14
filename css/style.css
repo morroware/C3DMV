@@ -2451,6 +2451,231 @@ kbd {
 }
 
 /* ============================================================================
+   UPLOAD STATUS & SUMMARY
+   ============================================================================ */
+
+/* Upload status badge */
+.upload-status-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 16px;
+    background: rgba(0, 255, 136, 0.1);
+    border: 1px solid var(--success);
+    border-radius: var(--radius-md);
+    color: var(--success);
+    font-weight: 600;
+    font-size: 0.9rem;
+}
+
+.upload-status-badge i {
+    font-size: 1rem;
+}
+
+/* Upload summary section */
+.upload-summary {
+    background: linear-gradient(135deg, rgba(0, 240, 255, 0.08), rgba(255, 0, 170, 0.05));
+    border: 1px solid rgba(0, 240, 255, 0.3);
+    border-radius: var(--radius-lg);
+    padding: 20px;
+    margin-top: 16px;
+}
+
+.upload-summary-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 16px;
+}
+
+.upload-summary-title {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--neon-cyan);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.upload-summary-count {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 28px;
+    height: 28px;
+    padding: 0 10px;
+    background: linear-gradient(135deg, var(--neon-cyan), var(--neon-magenta));
+    border-radius: 999px;
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: var(--bg-dark);
+}
+
+.upload-summary-stats {
+    display: flex;
+    gap: 24px;
+    flex-wrap: wrap;
+}
+
+.upload-stat {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.upload-stat-label {
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-muted);
+}
+
+.upload-stat-value {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+/* File list improvements */
+.file-list-item.selected {
+    border-color: var(--neon-cyan);
+    background: rgba(0, 240, 255, 0.1);
+    box-shadow: 0 0 12px rgba(0, 240, 255, 0.2);
+}
+
+.file-list-item-status {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.75rem;
+    color: var(--success);
+}
+
+.file-list-item-status i {
+    font-size: 0.85rem;
+}
+
+.file-list-item-preview.active {
+    background: var(--neon-cyan);
+    border-color: var(--neon-cyan);
+    color: var(--bg-dark);
+}
+
+/* File upload with files selected state */
+.file-upload.has-files {
+    border-style: solid;
+    border-color: var(--success);
+    background: rgba(0, 255, 136, 0.05);
+}
+
+.file-upload.has-files .file-upload-icon {
+    color: var(--success);
+}
+
+.file-upload-success {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+}
+
+.file-upload-success-icon {
+    width: 48px;
+    height: 48px;
+    background: rgba(0, 255, 136, 0.15);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--success);
+    font-size: 1.5rem;
+}
+
+.file-upload-success-text {
+    font-family: 'Orbitron', sans-serif;
+    font-weight: 600;
+    color: var(--success);
+}
+
+.file-upload-success-details {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+}
+
+.file-upload-change {
+    font-size: 0.8rem;
+    color: var(--neon-cyan);
+    cursor: pointer;
+    margin-top: 4px;
+}
+
+.file-upload-change:hover {
+    color: var(--neon-magenta);
+    text-decoration: underline;
+}
+
+/* Preview section enhancement */
+.preview-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+}
+
+.preview-title {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.preview-title i {
+    color: var(--neon-cyan);
+}
+
+.preview-filename {
+    font-size: 0.85rem;
+    color: var(--neon-cyan);
+    background: rgba(0, 240, 255, 0.1);
+    padding: 4px 12px;
+    border-radius: var(--radius-sm);
+    max-width: 200px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* Photo upload success state */
+.photo-upload-section.has-photo {
+    border-color: var(--neon-magenta);
+    border-style: solid;
+    background: rgba(255, 0, 170, 0.08);
+}
+
+.photo-upload-section.has-photo .upload-icon {
+    display: none;
+}
+
+.photo-success-indicator {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--neon-magenta);
+    font-weight: 600;
+    font-size: 0.9rem;
+    margin-bottom: 12px;
+}
+
+.photo-success-indicator i {
+    font-size: 1.1rem;
+}
+
+/* ============================================================================
    ENHANCED VIEWER EFFECTS
    ============================================================================ */
 
@@ -2460,7 +2685,7 @@ kbd {
     border-radius: var(--radius-lg);
     overflow: hidden;
     border: 1px solid var(--border-color);
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4), inset 0 0 60px rgba(0, 240, 255, 0.02);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2), inset 0 0 40px rgba(0, 240, 255, 0.02);
 }
 
 .viewer-container::before {
