@@ -23,6 +23,7 @@ class STLViewer {
         this.renderer = null;
         this.controls = null;
         this.mesh = null;
+        this.gridHelper = null;
         this.animationId = null;
         
         this.init();
@@ -85,6 +86,12 @@ class STLViewer {
         this.scene.add(rimLight);
     }
     
+    addGrid() {
+        this.gridHelper = new THREE.GridHelper(100, 20, 0x2a2a3a, 0x1a1a25);
+        this.gridHelper.rotation.x = Math.PI / 2;
+        this.scene.add(this.gridHelper);
+    }
+    
     loadSTL(url) {
         return new Promise((resolve, reject) => {
             const loader = new THREE.STLLoader();
@@ -120,6 +127,7 @@ class STLViewer {
                     
                     // Fit camera to model
                     this.fitCameraToModel();
+                    this.alignGridToModel();
                     
                     resolve(geometry);
                 },
@@ -150,6 +158,13 @@ class STLViewer {
         this.controls.update();
     }
 
+    alignGridToModel() {
+        if (!this.mesh || !this.gridHelper) return;
+
+        const box = new THREE.Box3().setFromObject(this.mesh);
+        this.gridHelper.position.z = box.min.z;
+    }
+    
     setColor(color) {
         if (this.mesh) {
             this.mesh.material.color.setHex(color);
