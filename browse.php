@@ -190,7 +190,7 @@ if ($query) {
                                 </div>
                                 <?php else: ?>
                                 <!-- Show 3D preview placeholder -->
-                                <div class="preview-placeholder" data-stl-thumb="uploads/<?= sanitize($model['filename']) ?>">
+                                <div class="preview-placeholder" data-model-thumb="uploads/<?= sanitize($model['filename']) ?>">
                                     <i class="fas fa-cube"></i>
                                 </div>
                                 <?php endif; ?>

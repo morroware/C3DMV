@@ -144,7 +144,7 @@ foreach ($trendingModels as $index => $model) {
                                     <i class="fas fa-camera"></i> Photo
                                 </div>
                                 <?php else: ?>
-                                <div class="preview-placeholder" data-stl-thumb="uploads/<?= sanitize($tm['filename']) ?>">
+                                <div class="preview-placeholder" data-model-thumb="uploads/<?= sanitize($tm['filename']) ?>">
                                     <i class="fas fa-cube"></i>
                                 </div>
                                 <?php endif; ?>
@@ -275,7 +275,7 @@ foreach ($trendingModels as $index => $model) {
                                     <i class="fas fa-camera"></i> Photo
                                 </div>
                                 <?php else: ?>
-                                <div class="preview-placeholder" data-stl-thumb="uploads/<?= sanitize($model['filename']) ?>">
+                                <div class="preview-placeholder" data-model-thumb="uploads/<?= sanitize($model['filename']) ?>">
                                     <i class="fas fa-cube"></i>
                                 </div>
                                 <?php endif; ?>
