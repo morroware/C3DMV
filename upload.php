@@ -582,8 +582,8 @@ $user = getCurrentUser();
         });
 
         // Supported file extensions for 3D printing
-        const ALLOWED_EXTENSIONS = ['stl', 'obj', 'ply', 'gltf', 'glb', '3mf'];
-        const COLOR_FORMATS = ['obj', 'ply', 'gltf', 'glb', '3mf'];
+        const allowedExtensions = window.ALLOWED_EXTENSIONS || ['stl', 'obj', 'ply', 'gltf', 'glb', '3mf'];
+        const colorFormats = ['obj', 'ply', 'gltf', 'glb', '3mf'];
 
         function handleFiles(files) {
             uploadedFiles = [];
@@ -591,8 +591,8 @@ $user = getCurrentUser();
 
             files.forEach(file => {
                 const ext = file.name.split('.').pop().toLowerCase();
-                if (!ALLOWED_EXTENSIONS.includes(ext)) {
-                    Toast.error(`Unsupported format: ${file.name}. Allowed: ${ALLOWED_EXTENSIONS.join(', ').toUpperCase()}`);
+                if (!allowedExtensions.includes(ext)) {
+                    Toast.error(`Unsupported format: ${file.name}. Allowed: ${allowedExtensions.join(', ').toUpperCase()}`);
                     return;
                 }
                 if (file.size > 50 * 1024 * 1024) {
@@ -645,7 +645,7 @@ $user = getCurrentUser();
             fileEmptyState.style.display = 'none';
             fileList.innerHTML = uploadedFiles.map((file, i) => {
                 const ext = file.name.split('.').pop().toLowerCase();
-                const hasColor = COLOR_FORMATS.includes(ext);
+                const hasColor = colorFormats.includes(ext);
                 return `
                 <div class="file-list-item${i === currentPreviewIndex ? ' selected' : ''}" data-index="${i}">
                     <div class="file-list-item-info">
@@ -757,7 +757,7 @@ $user = getCurrentUser();
             uploadedFiles.forEach(file => {
                 const ext = file.name.split('.').pop().toLowerCase();
                 formats.add(ext.toUpperCase());
-                if (COLOR_FORMATS.includes(ext)) colorCount++;
+                if (colorFormats.includes(ext)) colorCount++;
             });
 
             uploadSummary.style.display = 'block';
