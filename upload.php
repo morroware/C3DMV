@@ -257,6 +257,10 @@ $user = getCurrentUser();
                             <span id="summary-color" class="upload-stat-value">0</span>
                         </div>
                     </div>
+                    <div class="upload-summary-confirmation">
+                        <p class="upload-summary-note">All selected files are queued and ready. Review each file below to confirm.</p>
+                        <ul id="summary-files" class="upload-summary-files"></ul>
+                    </div>
                 </div>
 
                 <!-- File List -->
@@ -301,6 +305,7 @@ $user = getCurrentUser();
                     <div class="viewer-container" style="height: 300px;">
                         <div class="viewer-canvas" id="upload-preview"></div>
                     </div>
+                    <div class="form-hint">Use the tabs or file list to preview each file in your upload.</div>
                 </div>
 
                 </div>
@@ -502,6 +507,7 @@ $user = getCurrentUser();
         const summarySize = document.getElementById('summary-size');
         const summaryFormats = document.getElementById('summary-formats');
         const summaryColor = document.getElementById('summary-color');
+        const summaryFiles = document.getElementById('summary-files');
 
         let viewer = null;
         let uploadedFiles = [];
@@ -701,6 +707,13 @@ $user = getCurrentUser();
             summarySize.textContent = formatBytes(getTotalSize());
             summaryFormats.textContent = Array.from(formats).join(', ');
             summaryColor.textContent = colorCount;
+            summaryFiles.innerHTML = uploadedFiles.map((file) => `
+                <li class="upload-summary-file">
+                    <i class="fas fa-check-circle"></i>
+                    <span class="upload-summary-file-name">${file.name}</span>
+                    <span class="upload-summary-file-size">${formatBytes(file.size)}</span>
+                </li>
+            `).join('');
         }
 
         function getTotalSize() {
@@ -722,6 +735,7 @@ $user = getCurrentUser();
             }
 
             uploadSummary.style.display = 'none';
+            summaryFiles.innerHTML = '';
             fileListContainer.style.display = 'none';
             previewContainer.style.display = 'none';
             fileList.innerHTML = '';
