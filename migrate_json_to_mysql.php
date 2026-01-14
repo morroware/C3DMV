@@ -10,7 +10,149 @@ if (!defined('MIGRATION_MODE')) {
     define('MIGRATION_MODE', true);
 }
 
+// Check if running from CLI or browser
+$isCli = php_sapi_name() === 'cli';
+
+// Function to output message
+function outputMsg($message, $type = 'info') {
+    global $isCli;
+    if ($isCli) {
+        echo $message . "\n";
+    } else {
+        $class = $type === 'error' ? 'error' : ($type === 'success' ? 'success' : 'info');
+        echo "<div class='message $class'>" . nl2br(htmlspecialchars($message)) . "</div>";
+    }
+}
+
+// Start HTML if browser
+if (!$isCli) {
+    ?>
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>FEC STL Vault - Data Migration</title>
+        <style>
+            * { margin: 0; padding: 0; box-sizing: border-box; }
+            body {
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+                background: linear-gradient(135deg, #0a0a0f 0%, #1a1a2e 100%);
+                color: #e0e0e0;
+                padding: 20px;
+                min-height: 100vh;
+            }
+            .container {
+                max-width: 900px;
+                margin: 40px auto;
+                background: rgba(26, 26, 46, 0.8);
+                border: 2px solid rgba(0, 240, 255, 0.3);
+                border-radius: 12px;
+                padding: 40px;
+                box-shadow: 0 20px 60px rgba(0, 240, 255, 0.2);
+            }
+            h1 {
+                font-family: 'Courier New', monospace;
+                color: #00f0ff;
+                margin-bottom: 10px;
+                font-size: 2em;
+            }
+            h2 {
+                color: #00f0ff;
+                margin: 30px 0 15px;
+                font-size: 1.3em;
+            }
+            .subtitle {
+                color: #888;
+                margin-bottom: 30px;
+            }
+            .message {
+                padding: 15px 20px;
+                margin: 15px 0;
+                border-radius: 8px;
+                border-left: 4px solid;
+                background: rgba(0, 0, 0, 0.3);
+                line-height: 1.6;
+            }
+            .message.success {
+                border-color: #00ff88;
+                color: #00ff88;
+            }
+            .message.error {
+                border-color: #ff3366;
+                color: #ff3366;
+            }
+            .message.info {
+                border-color: #00f0ff;
+                color: #00f0ff;
+            }
+            .stats {
+                display: grid;
+                grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+                gap: 15px;
+                margin: 20px 0;
+            }
+            .stat {
+                background: rgba(0, 240, 255, 0.1);
+                padding: 15px;
+                border-radius: 8px;
+                text-align: center;
+                border: 1px solid rgba(0, 240, 255, 0.3);
+            }
+            .stat-value {
+                font-size: 2em;
+                font-weight: bold;
+                color: #00f0ff;
+            }
+            .stat-label {
+                color: #888;
+                margin-top: 5px;
+                font-size: 0.9em;
+            }
+            .btn {
+                display: inline-block;
+                padding: 12px 24px;
+                background: linear-gradient(135deg, #00f0ff, #00aacc);
+                color: #0a0a0f;
+                text-decoration: none;
+                border-radius: 6px;
+                font-weight: bold;
+                margin: 10px 10px 10px 0;
+                transition: transform 0.2s;
+            }
+            .btn:hover {
+                transform: translateY(-2px);
+            }
+            .progress {
+                margin: 20px 0;
+            }
+            .progress-item {
+                padding: 10px;
+                margin: 5px 0;
+                background: rgba(0, 0, 0, 0.2);
+                border-radius: 6px;
+                border-left: 3px solid #00f0ff;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <h1>📦 Data Migration</h1>
+            <p class="subtitle">Migrating JSON data to MySQL database</p>
+    <?php
+}
+
 require_once __DIR__ . '/includes/config.php';
+
+// Check if db_config exists
+if (!file_exists(__DIR__ . '/includes/db_config.php')) {
+    outputMsg("❌ Database configuration not found. Please run setup_database.php first.", 'error');
+    if (!$isCli) {
+        echo '<a href="setup_database.php" class="btn">⚙️ Run Database Setup</a></div></body></html>';
+    }
+    exit;
+}
+
 require_once __DIR__ . '/includes/db_config.php';
 
 // JSON file paths
@@ -18,31 +160,55 @@ define('OLD_USERS_FILE', DATA_DIR . 'users.json');
 define('OLD_MODELS_FILE', DATA_DIR . 'models.json');
 define('OLD_CATEGORIES_FILE', DATA_DIR . 'categories.json');
 
-echo "FEC STL Vault - JSON to MySQL Migration\n";
-echo "========================================\n\n";
+if ($isCli) {
+    echo "FEC STL Vault - JSON to MySQL Migration\n";
+    echo "========================================\n\n";
+}
 
 // Check if JSON files exist
 $hasData = false;
+$foundFiles = [];
 if (file_exists(OLD_USERS_FILE)) {
-    echo "✓ Found users.json\n";
+    outputMsg("✓ Found users.json", 'success');
     $hasData = true;
+    $foundFiles[] = 'users';
 }
 if (file_exists(OLD_MODELS_FILE)) {
-    echo "✓ Found models.json\n";
+    outputMsg("✓ Found models.json", 'success');
     $hasData = true;
+    $foundFiles[] = 'models';
 }
 if (file_exists(OLD_CATEGORIES_FILE)) {
-    echo "✓ Found categories.json\n";
+    outputMsg("✓ Found categories.json", 'success');
     $hasData = true;
+    $foundFiles[] = 'categories';
 }
 
 if (!$hasData) {
-    die("\n❌ No JSON data files found in " . DATA_DIR . "\nNothing to migrate.\n");
+    outputMsg("❌ No JSON data files found in " . DATA_DIR . "\nNothing to migrate.", 'error');
+    if (!$isCli) {
+        echo '<div class="message info">Your database is already set up. No JSON files to migrate.</div>';
+        echo '<a href="index.php" class="btn">🏠 Go to Site</a></div></body></html>';
+    }
+    exit;
 }
 
-echo "\nConnecting to database...\n";
-$conn = getDbConnection();
-echo "✓ Connected successfully!\n\n";
+outputMsg("Connecting to database...", 'info');
+
+try {
+    $conn = getDbConnection();
+    outputMsg("✓ Connected successfully!", 'success');
+} catch (Exception $e) {
+    outputMsg("❌ Database connection failed: " . $e->getMessage(), 'error');
+    if (!$isCli) {
+        echo '<a href="setup_database.php" class="btn">⚙️ Run Database Setup</a></div></body></html>';
+    }
+    exit;
+}
+
+if (!$isCli) {
+    echo '<h2>🔄 Migration Progress</h2><div class="progress">';
+}
 
 // Helper function to read JSON
 function readJsonFile($file) {
@@ -255,13 +421,13 @@ $conn->query("
         WHERE m.category = c.id
     )
 ");
-echo "✓ Category counts updated\n\n";
+outputMsg("✓ Category counts updated", 'success');
+
+if (!$isCli) {
+    echo '</div>'; // Close progress div
+}
 
 // Show statistics
-echo "========================================\n";
-echo "Migration complete!\n";
-echo "========================================\n\n";
-
 $totalUsers = $conn->query("SELECT COUNT(*) as count FROM users")->fetch_assoc()['count'];
 $totalModels = $conn->query("SELECT COUNT(*) as count FROM models")->fetch_assoc()['count'];
 $totalCategories = $conn->query("SELECT COUNT(*) as count FROM categories")->fetch_assoc()['count'];
@@ -269,19 +435,76 @@ $totalFiles = $conn->query("SELECT COUNT(*) as count FROM model_files")->fetch_a
 $totalPhotos = $conn->query("SELECT COUNT(*) as count FROM model_photos")->fetch_assoc()['count'];
 $totalFavorites = $conn->query("SELECT COUNT(*) as count FROM favorites")->fetch_assoc()['count'];
 
-echo "Database Statistics:\n";
-echo "  Users: $totalUsers\n";
-echo "  Models: $totalModels\n";
-echo "  Categories: $totalCategories\n";
-echo "  Model Files: $totalFiles\n";
-echo "  Model Photos: $totalPhotos\n";
-echo "  Favorites: $totalFavorites\n\n";
+if (!$isCli) {
+    ?>
+    <div class="message success">
+        <strong>✅ Migration Complete!</strong><br>
+        All JSON data has been successfully migrated to MySQL.
+    </div>
 
-echo "Next steps:\n";
-echo "1. Test the application thoroughly\n";
-echo "2. Backup the JSON files (they are no longer used)\n";
-echo "3. You can delete or archive the old JSON files after verifying everything works\n";
-echo "4. Consider removing the data/ directory after confirming migration success\n\n";
+    <h2>📊 Database Statistics</h2>
+    <div class="stats">
+        <div class="stat">
+            <div class="stat-value"><?php echo $totalUsers; ?></div>
+            <div class="stat-label">Users</div>
+        </div>
+        <div class="stat">
+            <div class="stat-value"><?php echo $totalModels; ?></div>
+            <div class="stat-label">Models</div>
+        </div>
+        <div class="stat">
+            <div class="stat-value"><?php echo $totalCategories; ?></div>
+            <div class="stat-label">Categories</div>
+        </div>
+        <div class="stat">
+            <div class="stat-value"><?php echo $totalFiles; ?></div>
+            <div class="stat-label">Model Files</div>
+        </div>
+        <div class="stat">
+            <div class="stat-value"><?php echo $totalPhotos; ?></div>
+            <div class="stat-label">Photos</div>
+        </div>
+        <div class="stat">
+            <div class="stat-value"><?php echo $totalFavorites; ?></div>
+            <div class="stat-label">Favorites</div>
+        </div>
+    </div>
+
+    <div class="message info">
+        <strong>📝 Next Steps:</strong><br>
+        <ol style="margin: 10px 0 0 20px;">
+            <li>Test the application thoroughly</li>
+            <li>Backup the JSON files (they are no longer used)</li>
+            <li>Delete or archive the old JSON files after verification</li>
+            <li>Consider removing the <code>data/</code> directory</li>
+        </ol>
+    </div>
+
+    <h2>🔗 Quick Links</h2>
+    <a href="index.php" class="btn">🏠 Go to Site</a>
+    <a href="login.php" class="btn">🔐 Log In</a>
+
+    </div>
+    </body>
+    </html>
+    <?php
+} else {
+    echo "\n========================================\n";
+    echo "Migration complete!\n";
+    echo "========================================\n\n";
+    echo "Database Statistics:\n";
+    echo "  Users: $totalUsers\n";
+    echo "  Models: $totalModels\n";
+    echo "  Categories: $totalCategories\n";
+    echo "  Model Files: $totalFiles\n";
+    echo "  Model Photos: $totalPhotos\n";
+    echo "  Favorites: $totalFavorites\n\n";
+    echo "Next steps:\n";
+    echo "1. Test the application thoroughly\n";
+    echo "2. Backup the JSON files (they are no longer used)\n";
+    echo "3. You can delete or archive the old JSON files after verifying everything works\n";
+    echo "4. Consider removing the data/ directory after confirming migration success\n\n";
+}
 
 $conn->close();
 ?>
