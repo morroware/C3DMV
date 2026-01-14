@@ -631,6 +631,11 @@ foreach ($relatedModels as $index => $rm) {
                             mainViewer.setColor(colorHex);
                         }
                         colorPalette.classList.remove('active');
+
+                        // Trigger color applied animation
+                        colorBtn.classList.add('color-applied');
+                        setTimeout(() => colorBtn.classList.remove('color-applied'), 500);
+
                         Toast.success('Color applied!');
                     }
                 });
@@ -647,6 +652,11 @@ foreach ($relatedModels as $index => $rm) {
                             mainViewer.setColor(colorHex);
                         }
                         colorPalette.classList.remove('active');
+
+                        // Trigger color applied animation
+                        colorBtn.classList.add('color-applied');
+                        setTimeout(() => colorBtn.classList.remove('color-applied'), 500);
+
                         Toast.success('Custom color applied!');
                     });
                 }
@@ -913,6 +923,8 @@ foreach ($relatedModels as $index => $rm) {
 
         async function likeModel(id) {
             try {
+                const btn = document.getElementById('like-btn');
+                btn.classList.add('liked');
                 const response = await API.likeModel(id);
                 if (response.success) {
                     document.getElementById('like-count').textContent = response.likes;
@@ -920,6 +932,7 @@ foreach ($relatedModels as $index => $rm) {
                 }
             } catch (err) {
                 Toast.error('Failed to like');
+                document.getElementById('like-btn').classList.remove('liked');
             }
         }
 
