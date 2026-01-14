@@ -227,15 +227,53 @@ $user = getCurrentUser();
                     </div>
                 </div>
 
+                <!-- Upload Summary -->
+                <div id="upload-summary" class="upload-summary" style="display: none;">
+                    <div class="upload-summary-header">
+                        <div class="upload-summary-title">
+                            <i class="fas fa-check-circle"></i>
+                            Files Ready to Upload
+                            <span id="summary-count" class="upload-summary-count">0</span>
+                        </div>
+                        <div class="upload-status-badge">
+                            <i class="fas fa-check"></i>
+                            Ready
+                        </div>
+                    </div>
+                    <div class="upload-summary-stats">
+                        <div class="upload-stat">
+                            <span class="upload-stat-label">Total Size</span>
+                            <span id="summary-size" class="upload-stat-value">0 MB</span>
+                        </div>
+                        <div class="upload-stat">
+                            <span class="upload-stat-label">Formats</span>
+                            <span id="summary-formats" class="upload-stat-value">-</span>
+                        </div>
+                        <div class="upload-stat">
+                            <span class="upload-stat-label">Color Models</span>
+                            <span id="summary-color" class="upload-stat-value">0</span>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- File List -->
                 <div id="file-list-container" class="form-group" style="display: none;">
-                    <label class="form-label">Selected Files (<span id="file-count">0</span>)</label>
+                    <label class="form-label">
+                        <i class="fas fa-list" style="color: var(--neon-cyan);"></i>
+                        Uploaded Files
+                    </label>
                     <div id="file-list" class="file-list"></div>
                 </div>
 
                 <!-- 3D Preview -->
                 <div id="preview-container" class="form-group" style="display: none;">
-                    <label class="form-label">Preview</label>
+                    <div class="preview-header">
+                        <div class="preview-title">
+                            <i class="fas fa-cube"></i>
+                            3D Preview
+                        </div>
+                        <span id="preview-filename" class="preview-filename"></span>
+                    </div>
                     <div id="file-tabs" class="file-tabs"></div>
                     <div class="viewer-container" style="height: 300px;">
                         <div class="viewer-canvas" id="upload-preview"></div>
@@ -408,7 +446,14 @@ $user = getCurrentUser();
         const fileListContainer = document.getElementById('file-list-container');
         const fileList = document.getElementById('file-list');
         const fileTabs = document.getElementById('file-tabs');
-        const fileCountSpan = document.getElementById('file-count');
+        const previewFilename = document.getElementById('preview-filename');
+
+        // Upload summary elements
+        const uploadSummary = document.getElementById('upload-summary');
+        const summaryCount = document.getElementById('summary-count');
+        const summarySize = document.getElementById('summary-size');
+        const summaryFormats = document.getElementById('summary-formats');
+        const summaryColor = document.getElementById('summary-color');
 
         let viewer = null;
         let uploadedFiles = [];
@@ -468,15 +513,41 @@ $user = getCurrentUser();
             if (validFiles.length === 0) return;
 
             uploadedFiles = validFiles;
+
+            // Count color formats and get unique extensions
+            const formats = new Set();
+            let colorCount = 0;
+            validFiles.forEach(file => {
+                const ext = file.name.split('.').pop().toLowerCase();
+                formats.add(ext.toUpperCase());
+                if (COLOR_FORMATS.includes(ext)) colorCount++;
+            });
+
+            // Update upload summary
+            uploadSummary.style.display = 'block';
+            summaryCount.textContent = validFiles.length;
+            summarySize.textContent = `${(totalSize / 1024 / 1024).toFixed(2)} MB`;
+            summaryFormats.textContent = Array.from(formats).join(', ');
+            summaryColor.textContent = colorCount;
+
             updateFileList();
             updateFileTabs();
             showPreview(0);
 
-            // Update dropzone text
+            // Update dropzone to show success state
+            dropzone.classList.add('has-files');
             const fileText = validFiles.length === 1 ? '1 file' : `${validFiles.length} files`;
             dropzone.querySelector('.file-upload-text').innerHTML = `
-                <strong>${fileText} selected</strong><br>
-                <small>Total: ${(totalSize / 1024 / 1024).toFixed(2)} MB</small>
+                <div class="file-upload-success">
+                    <div class="file-upload-success-icon">
+                        <i class="fas fa-check"></i>
+                    </div>
+                    <div class="file-upload-success-text">${fileText} selected</div>
+                    <div class="file-upload-success-details">
+                        ${(totalSize / 1024 / 1024).toFixed(2)} MB total
+                    </div>
+                    <div class="file-upload-change">Click to change files</div>
+                </div>
             `;
 
             Toast.success(`${validFiles.length} file(s) ready to upload`);
@@ -484,21 +555,21 @@ $user = getCurrentUser();
 
         function updateFileList() {
             fileListContainer.style.display = 'block';
-            fileCountSpan.textContent = uploadedFiles.length;
 
             fileList.innerHTML = uploadedFiles.map((file, i) => {
                 const ext = file.name.split('.').pop().toLowerCase();
                 const hasColor = COLOR_FORMATS.includes(ext);
                 return `
-                <div class="file-list-item" data-index="${i}">
+                <div class="file-list-item${i === currentPreviewIndex ? ' selected' : ''}" data-index="${i}">
                     <div class="file-list-item-info">
                         <i class="fas ${hasColor ? 'fa-palette' : 'fa-cube'}" style="color: ${hasColor ? 'var(--neon-magenta)' : 'var(--neon-cyan)'};"></i>
                         <span class="file-list-item-name">${file.name}</span>
                         <span class="format-badge-mini ${hasColor ? 'format-color' : ''}">${ext.toUpperCase()}</span>
                         <span class="file-list-item-size">${(file.size / 1024 / 1024).toFixed(2)} MB</span>
+                        <span class="file-list-item-status"><i class="fas fa-check-circle"></i> Ready</span>
                     </div>
-                    <button type="button" class="file-list-item-preview btn btn-sm btn-outline" onclick="showPreview(${i})">
-                        <i class="fas fa-eye"></i>
+                    <button type="button" class="file-list-item-preview btn btn-sm btn-outline${i === currentPreviewIndex ? ' active' : ''}" onclick="showPreview(${i})">
+                        <i class="fas fa-eye"></i> Preview
                     </button>
                 </div>
             `}).join('');
@@ -530,13 +601,22 @@ $user = getCurrentUser();
                 tab.classList.toggle('active', i === index);
             });
 
-            // Update file list active state
+            // Update file list active state and selection
             document.querySelectorAll('.file-list-item').forEach((item, i) => {
                 item.classList.toggle('active', i === index);
+                item.classList.toggle('selected', i === index);
+            });
+
+            // Update preview buttons
+            document.querySelectorAll('.file-list-item-preview').forEach((btn, i) => {
+                btn.classList.toggle('active', i === index);
             });
 
             const file = uploadedFiles[index];
             const url = URL.createObjectURL(file);
+
+            // Update preview filename display
+            previewFilename.textContent = file.name;
 
             if (viewer) {
                 viewer.dispose();
@@ -607,8 +687,18 @@ $user = getCurrentUser();
             reader.onload = (e) => {
                 photoPreviewImg.src = e.target.result;
                 photoPreview.style.display = 'block';
+                photoDropzone.classList.add('has-photo');
                 photoDropzone.querySelector('label').style.display = 'none';
-                Toast.success('Photo added!');
+
+                // Add success indicator if not exists
+                if (!photoDropzone.querySelector('.photo-success-indicator')) {
+                    const indicator = document.createElement('div');
+                    indicator.className = 'photo-success-indicator';
+                    indicator.innerHTML = '<i class="fas fa-check-circle"></i> Photo added successfully';
+                    photoDropzone.insertBefore(indicator, photoPreview);
+                }
+
+                Toast.success('Photo added! It will appear as a preview thumbnail.');
             };
             reader.readAsDataURL(file);
         }
@@ -618,7 +708,13 @@ $user = getCurrentUser();
                 photoInput.value = '';
                 photoPreviewImg.src = '';
                 photoPreview.style.display = 'none';
+                photoDropzone.classList.remove('has-photo');
                 photoDropzone.querySelector('label').style.display = 'block';
+
+                // Remove success indicator
+                const indicator = photoDropzone.querySelector('.photo-success-indicator');
+                if (indicator) indicator.remove();
+
                 Toast.info('Photo removed');
             });
         }
