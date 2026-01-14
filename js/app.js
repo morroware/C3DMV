@@ -633,10 +633,18 @@ class ModelViewer {
                 child.receiveShadow = true;
 
                 if (hasMaterials && child.material) {
+                    const originalMaterial = child.material;
+                    const normalizedMaterial = this.normalizeMaterial(originalMaterial);
+                    const clonedMaterial = Array.isArray(normalizedMaterial)
+                        ? normalizedMaterial.map((entry) => entry.clone())
+                        : normalizedMaterial.clone();
+
                     this.originalMaterials.push({
                         mesh: child,
-                        material: child.material.clone()
+                        material: clonedMaterial
                     });
+
+                    child.material = normalizedMaterial;
 
                     // Add environment map
                     if (this.envMap && child.material.envMap !== undefined) {
@@ -658,6 +666,32 @@ class ModelViewer {
 
         this.fitCameraToModel();
         this.alignGridToModel();
+    }
+
+    normalizeMaterial(material) {
+        if (Array.isArray(material)) {
+            return material.map((entry) => this.normalizeMaterial(entry));
+        }
+
+        if (material.isMeshPhongMaterial || material.isMeshLambertMaterial) {
+            return new THREE.MeshStandardMaterial({
+                color: material.color?.clone() || new THREE.Color(0xffffff),
+                map: material.map || null,
+                emissive: material.emissive?.clone() || new THREE.Color(0x000000),
+                emissiveMap: material.emissiveMap || null,
+                vertexColors: material.vertexColors || false,
+                transparent: material.transparent || false,
+                opacity: material.opacity ?? 1,
+                side: material.side ?? THREE.FrontSide,
+                roughness: material.roughness ?? 0.6,
+                metalness: material.metalness ?? 0.1,
+                flatShading: material.flatShading || false,
+                wireframe: material.wireframe || false,
+                name: material.name
+            });
+        }
+
+        return material;
     }
 
     // Handle loading progress
@@ -1081,12 +1115,26 @@ class ThumbnailViewer {
         object.position.sub(center);
 
         object.traverse((child) => {
-            if (child.isMesh && !child.material.map) {
-                child.material = new THREE.MeshPhysicalMaterial({
-                    color: child.material.color || 0x00f0ff,
-                    metalness: 0.1,
-                    roughness: 0.5
-                });
+            if (child.isMesh) {
+                if (child.material?.isMeshPhongMaterial || child.material?.isMeshLambertMaterial) {
+                    child.material = new THREE.MeshStandardMaterial({
+                        color: child.material.color || 0x00f0ff,
+                        map: child.material.map || null,
+                        emissive: child.material.emissive || new THREE.Color(0x000000),
+                        emissiveMap: child.material.emissiveMap || null,
+                        vertexColors: child.material.vertexColors || false,
+                        metalness: 0.1,
+                        roughness: 0.5,
+                        transparent: child.material.transparent || false,
+                        opacity: child.material.opacity ?? 1
+                    });
+                } else if (!child.material.map) {
+                    child.material = new THREE.MeshPhysicalMaterial({
+                        color: child.material.color || 0x00f0ff,
+                        metalness: 0.1,
+                        roughness: 0.5
+                    });
+                }
             }
         });
 
