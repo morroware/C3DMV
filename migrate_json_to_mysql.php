@@ -441,8 +441,12 @@ if (!empty($models)) {
             $modelFeatured = $model['featured'] ?? false;
 
             // Insert model
+            // Type string: s=string, i=integer
+            // Columns: id(s), user_id(s), title(s), description(s), category(s), tags(s), filename(s),
+            //          filesize(i), file_count(i), thumbnail(s), photo(s), primary_display(s), license(s),
+            //          print_settings(s), downloads(i), likes(i), views(i), featured(i), created_at(s), updated_at(s)
             $modelStmt->bind_param(
-                "sssssssississiiisss",
+                "sssssssiisssssiiiiss",
                 $modelId,
                 $modelUserId,
                 $modelTitle,
