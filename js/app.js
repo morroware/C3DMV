@@ -57,9 +57,6 @@ class STLViewer {
         // Lighting
         this.setupLighting();
         
-        // Grid
-        this.addGrid();
-        
         // Handle resize
         this.handleResize = () => this.onResize();
         window.addEventListener('resize', this.handleResize);
