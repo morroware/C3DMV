@@ -477,16 +477,18 @@ if (USE_MYSQL) {
             ");
 
             foreach ($files as $index => $file) {
-                $hasColor = $file['has_color'] ?? false;
+                $hasColor = (int)($file['has_color'] ?? false);
+                $filesize = (int)$file['filesize'];
+                $fileOrder = (int)$index;
                 $fileStmt->bind_param(
                     "ssissii",
                     $id,
                     $file['filename'],
-                    $file['filesize'],
+                    $filesize,
                     $file['original_name'],
                     $file['extension'],
                     $hasColor,
-                    $index
+                    $fileOrder
                 );
                 $fileStmt->execute();
             }
@@ -501,8 +503,9 @@ if (USE_MYSQL) {
             ");
 
             foreach ($photos as $index => $photo) {
-                $isPrimary = ($index === 0);
-                $photoStmt->bind_param("ssii", $id, $photo, $isPrimary, $index);
+                $isPrimary = (int)($index === 0);
+                $photoOrder = (int)$index;
+                $photoStmt->bind_param("ssii", $id, $photo, $isPrimary, $photoOrder);
                 $photoStmt->execute();
             }
         }
