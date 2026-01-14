@@ -328,8 +328,11 @@ $user = getCurrentUser();
                         </div>
                     </div>
                     <div id="file-tabs" class="file-tabs"></div>
-                    <div class="viewer-container" style="height: 300px;">
-                        <div class="viewer-canvas" id="upload-preview"></div>
+                    <div class="viewer-container" style="min-height: 350px; position: relative;">
+                        <div class="viewer-loading" id="preview-loading" style="display: none;">
+                            <div class="spinner"></div>
+                        </div>
+                        <div class="viewer-canvas" id="upload-preview" style="width: 100%; height: 350px;"></div>
                     </div>
                     <div class="form-hint">Use the tabs or file list to preview each file in your upload.</div>
                 </div>
@@ -710,16 +713,34 @@ $user = getCurrentUser();
             // Update preview filename display
             previewFilename.textContent = file.name;
 
+            // Show loading indicator
+            const loadingEl = document.getElementById('preview-loading');
+            if (loadingEl) loadingEl.style.display = 'flex';
+
+            // Dispose of old viewer
             if (viewer) {
                 viewer.dispose();
+                viewer = null;
             }
 
-            viewer = new ModelViewer(previewCanvas, { autoRotate: true });
-            viewer.loadModel(url).then(() => {
-                // Success - model loaded
-            }).catch(err => {
-                Toast.error('Failed to preview model');
-                console.error(err);
+            // Use requestAnimationFrame to ensure container is rendered before initializing viewer
+            requestAnimationFrame(() => {
+                requestAnimationFrame(() => {
+                    try {
+                        viewer = new ModelViewer(previewCanvas, { autoRotate: true });
+                        viewer.loadModel(url).then(() => {
+                            // Success - hide loading
+                            if (loadingEl) loadingEl.style.display = 'none';
+                        }).catch(err => {
+                            if (loadingEl) loadingEl.style.display = 'none';
+                            Toast.error('Failed to preview model');
+                            console.error(err);
+                        });
+                    } catch (err) {
+                        if (loadingEl) loadingEl.style.display = 'none';
+                        console.error('Viewer init error:', err);
+                    }
+                });
             });
 
             updatePreviewButtons();

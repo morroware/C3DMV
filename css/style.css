@@ -4601,3 +4601,141 @@ kbd {
         right: 8px;
     }
 }
+
+/* ============================================================================
+   UPLOAD PREVIEW FIXES
+   ============================================================================ */
+
+/* Ensure upload preview canvas has proper dimensions */
+#upload-preview {
+    width: 100% !important;
+    height: 350px !important;
+    display: block;
+    background: var(--bg-dark);
+    border-radius: var(--radius-md);
+}
+
+#upload-preview canvas {
+    width: 100% !important;
+    height: 100% !important;
+    display: block;
+}
+
+/* Preview container animation */
+#preview-container {
+    animation: slideInUp 0.3s ease;
+}
+
+@keyframes slideInUp {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* File list container animation */
+#file-list-container {
+    animation: slideInUp 0.3s ease;
+}
+
+/* Upload summary animation */
+#upload-summary {
+    animation: slideInUp 0.3s ease;
+    animation-delay: 0.1s;
+    animation-fill-mode: both;
+}
+
+/* Viewer loading indicator positioning */
+#preview-container .viewer-loading {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 10;
+    background: rgba(10, 10, 15, 0.9);
+    border-radius: var(--radius-md);
+}
+
+/* Photo gallery preview grid */
+.photo-gallery-preview {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+    gap: 12px;
+    padding: 16px;
+    background: rgba(255, 0, 170, 0.03);
+    border-radius: var(--radius-md);
+    margin-top: 12px;
+}
+
+/* Photo upload section with photos */
+.photo-upload-section.has-photo {
+    border-style: solid;
+    border-color: var(--neon-magenta);
+    background: rgba(255, 0, 170, 0.05);
+}
+
+/* Better visual feedback for dropzone with files */
+.file-upload.has-files {
+    border-style: solid;
+    border-color: var(--success);
+    background: rgba(0, 255, 136, 0.05);
+}
+
+.file-upload.has-files .file-upload-success {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    padding: 20px;
+}
+
+.file-upload-success-icon {
+    width: 56px;
+    height: 56px;
+    background: linear-gradient(135deg, var(--success), #00cc6a);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--bg-dark);
+    font-size: 1.5rem;
+    box-shadow: 0 4px 20px rgba(0, 255, 136, 0.3);
+}
+
+.file-upload-success-text {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 1.2rem;
+    color: var(--success);
+    font-weight: 600;
+}
+
+.file-upload-success-details {
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+}
+
+.file-upload-change {
+    color: var(--neon-cyan);
+    font-size: 0.85rem;
+    margin-top: 4px;
+}
+
+.file-upload-change:hover {
+    text-decoration: underline;
+}
+
+/* Ensure viewer container in upload has proper aspect ratio */
+#preview-container .viewer-container {
+    aspect-ratio: 16/10;
+    min-height: 300px;
+    max-height: 450px;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+    background: var(--bg-dark);
+}
