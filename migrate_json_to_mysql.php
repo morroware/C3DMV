@@ -10,8 +10,24 @@ if (!defined('MIGRATION_MODE')) {
     define('MIGRATION_MODE', true);
 }
 
+// Set execution limits for long-running migration
+@set_time_limit(300); // 5 minutes
+@ini_set('max_execution_time', 300);
+@ini_set('memory_limit', '256M');
+
 // Check if running from CLI or browser
 $isCli = php_sapi_name() === 'cli';
+
+// Enable output buffering and auto-flush for browser
+if (!$isCli) {
+    @ini_set('output_buffering', 'off');
+    @ini_set('zlib.output_compression', false);
+    @ini_set('implicit_flush', true);
+    ob_implicit_flush(true);
+    if (ob_get_level() > 0) {
+        ob_end_flush();
+    }
+}
 
 // Function to output message
 function outputMsg($message, $type = 'info') {
@@ -21,6 +37,10 @@ function outputMsg($message, $type = 'info') {
     } else {
         $class = $type === 'error' ? 'error' : ($type === 'success' ? 'success' : 'info');
         echo "<div class='message $class'>" . nl2br(htmlspecialchars($message)) . "</div>";
+        flush();
+        if (ob_get_level() > 0) {
+            ob_flush();
+        }
     }
 }
 
@@ -223,12 +243,14 @@ $categories = readJsonFile(OLD_CATEGORIES_FILE);
 $categoryCount = 0;
 
 if (!empty($categories)) {
+    outputMsg("Found " . count($categories) . " categories to migrate", 'info');
     $stmt = $conn->prepare("INSERT INTO categories (id, name, icon, description, count) VALUES (?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE name=VALUES(name), icon=VALUES(icon), description=VALUES(description), count=VALUES(count)");
 
     if (!$stmt) {
         outputMsg("❌ Failed to prepare category statement: " . $conn->error, 'error');
     } else {
         foreach ($categories as $cat) {
+            outputMsg("  Processing: {$cat['name']}...", 'info');
             $stmt->bind_param(
                 "ssssi",
                 $cat['id'],
@@ -239,11 +261,9 @@ if (!empty($categories)) {
             );
             if ($stmt->execute()) {
                 $categoryCount++;
-                if ($isCli) {
-                    echo "  ✓ {$cat['name']}\n";
-                }
+                outputMsg("  ✓ {$cat['name']}", 'success');
             } else {
-                outputMsg("Failed to migrate category '{$cat['name']}': " . $stmt->error, 'error');
+                outputMsg("  ❌ Failed to migrate category '{$cat['name']}': " . $stmt->error, 'error');
             }
         }
         $stmt->close();
@@ -257,6 +277,8 @@ $users = readJsonFile(OLD_USERS_FILE);
 $userCount = 0;
 
 if (!empty($users)) {
+    $totalUsers = count($users);
+    outputMsg("Found $totalUsers users to migrate", 'info');
     $stmt = $conn->prepare("INSERT INTO users (id, username, email, password, is_admin, avatar, bio, location, created_at, model_count, download_count) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE username=VALUES(username), email=VALUES(email)");
 
     if (!$stmt) {
@@ -285,6 +307,9 @@ if (!empty($users)) {
                 $userCount++;
                 if ($isCli) {
                     echo "  ✓ {$user['username']}\n";
+                } else {
+                    // Show progress every user in browser mode
+                    outputMsg("  ✓ {$user['username']} ($userCount/$totalUsers)", 'success');
                 }
 
                 // Migrate user favorites
@@ -299,7 +324,7 @@ if (!empty($users)) {
                     }
                 }
             } else {
-                outputMsg("Failed to migrate user '{$user['username']}': " . $stmt->error, 'error');
+                outputMsg("  ❌ Failed to migrate user '{$user['username']}': " . $stmt->error, 'error');
             }
         }
         $stmt->close();
@@ -313,6 +338,8 @@ $models = readJsonFile(OLD_MODELS_FILE);
 $modelCount = 0;
 
 if (!empty($models)) {
+    $totalModels = count($models);
+    outputMsg("Found $totalModels models to migrate", 'info');
     $modelStmt = $conn->prepare("
         INSERT INTO models
         (id, user_id, title, description, category, tags, filename, filesize, file_count,
@@ -377,6 +404,8 @@ if (!empty($models)) {
                 $modelCount++;
                 if ($isCli) {
                     echo "  ✓ {$model['title']}\n";
+                } else {
+                    outputMsg("  ✓ {$model['title']} ($modelCount/$totalModels)", 'success');
                 }
 
                 // Migrate files
