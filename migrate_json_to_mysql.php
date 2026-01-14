@@ -488,6 +488,20 @@ if (!empty($models)) {
                     outputMsg("  ✓ {$model['title']} ($modelCount/$totalModels)", 'success');
                 }
 
+                // Clear any existing file/photo rows for this model to avoid duplicates on re-run
+                $cleanupFilesStmt = $conn->prepare("DELETE FROM model_files WHERE model_id = ?");
+                if ($cleanupFilesStmt) {
+                    $cleanupFilesStmt->bind_param("s", $modelId);
+                    $cleanupFilesStmt->execute();
+                    $cleanupFilesStmt->close();
+                }
+                $cleanupPhotosStmt = $conn->prepare("DELETE FROM model_photos WHERE model_id = ?");
+                if ($cleanupPhotosStmt) {
+                    $cleanupPhotosStmt->bind_param("s", $modelId);
+                    $cleanupPhotosStmt->execute();
+                    $cleanupPhotosStmt->close();
+                }
+
                 // Migrate files
                 outputMsg("    Migrating files...", 'info');
                 if (!empty($model['files'])) {
