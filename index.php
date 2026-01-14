@@ -7,13 +7,23 @@ require_once __DIR__ . '/includes/config.php';
 require_once __DIR__ . '/includes/db.php';
 
 $categories = getCategories();
+$stats = getStats();
 $recentModels = searchModels('', null, 'newest');
 $recentModels = array_slice($recentModels, 0, 8);
+
+// Get trending/popular models (most downloads in recent models)
+$trendingModels = searchModels('', null, 'popular');
+$trendingModels = array_slice($trendingModels, 0, 4);
 
 // Add author info to models
 foreach ($recentModels as $index => $model) {
     $user = getUser($model['user_id']);
     $recentModels[$index]['author'] = $user ? $user['username'] : 'Unknown';
+}
+
+foreach ($trendingModels as $index => $model) {
+    $user = getUser($model['user_id']);
+    $trendingModels[$index]['author'] = $user ? $user['username'] : 'Unknown';
 }
 ?>
 <!DOCTYPE html>
@@ -99,6 +109,114 @@ foreach ($recentModels as $index => $model) {
             </div>
         </section>
 
+        <!-- Animated Stats Section -->
+        <section class="container">
+            <div class="stats-grid">
+                <div class="stat-card hover-lift">
+                    <div class="stat-card-icon">
+                        <i class="fas fa-cube"></i>
+                    </div>
+                    <div class="stat-card-value" data-count="<?= $stats['total_models'] ?>">0</div>
+                    <div class="stat-card-label">3D Models</div>
+                </div>
+                <div class="stat-card hover-lift">
+                    <div class="stat-card-icon">
+                        <i class="fas fa-users"></i>
+                    </div>
+                    <div class="stat-card-value" data-count="<?= $stats['total_users'] ?>">0</div>
+                    <div class="stat-card-label">Community Members</div>
+                </div>
+                <div class="stat-card hover-lift">
+                    <div class="stat-card-icon">
+                        <i class="fas fa-download"></i>
+                    </div>
+                    <div class="stat-card-value" data-count="<?= $stats['total_downloads'] ?>">0</div>
+                    <div class="stat-card-label">Downloads</div>
+                </div>
+                <div class="stat-card hover-lift">
+                    <div class="stat-card-icon">
+                        <i class="fas fa-folder"></i>
+                    </div>
+                    <div class="stat-card-value" data-count="<?= $stats['total_categories'] ?>">0</div>
+                    <div class="stat-card-label">Categories</div>
+                </div>
+            </div>
+        </section>
+
+        <?php if (!empty($trendingModels)): ?>
+        <!-- Trending/Featured Section -->
+        <section class="container" style="margin-bottom: 60px;">
+            <div class="featured-section">
+                <div class="section-header" style="margin-bottom: 24px;">
+                    <div>
+                        <span class="featured-badge">
+                            <i class="fas fa-fire"></i> Hot Right Now
+                        </span>
+                        <h2 class="section-title" style="margin-top: 12px;">
+                            <i class="fas fa-chart-line"></i>
+                            Trending Models
+                        </h2>
+                    </div>
+                    <a href="browse.php?sort=popular" class="btn btn-outline btn-sm">View All Popular</a>
+                </div>
+
+                <div class="model-grid">
+                    <?php foreach ($trendingModels as $tm): ?>
+                        <?php $category = getCategory($tm['category']); ?>
+                        <div class="card model-card">
+                            <div class="model-card-preview">
+                                <div class="preview-placeholder" data-stl-thumb="uploads/<?= sanitize($tm['filename']) ?>">
+                                    <i class="fas fa-cube"></i>
+                                </div>
+                                <?php if (($tm['file_count'] ?? 1) > 1): ?>
+                                <div style="position: absolute; top: 12px; right: 12px;">
+                                    <span class="file-count-badge"><?= $tm['file_count'] ?> files</span>
+                                </div>
+                                <?php endif; ?>
+                                <?php if (($tm['downloads'] ?? 0) > 0): ?>
+                                <div style="position: absolute; top: 12px; left: 12px;">
+                                    <span class="trending-indicator">
+                                        <i class="fas fa-arrow-up"></i> <?= $tm['downloads'] ?> downloads
+                                    </span>
+                                </div>
+                                <?php endif; ?>
+                                <div class="model-card-overlay">
+                                    <div class="model-card-actions">
+                                        <a href="model.php?id=<?= $tm['id'] ?>" class="btn btn-primary btn-sm">
+                                            <i class="fas fa-eye"></i> View
+                                        </a>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="model-card-body">
+                                <?php if ($category): ?>
+                                    <span class="model-card-category">
+                                        <i class="fas <?= sanitize($category['icon']) ?>"></i>
+                                        <?= sanitize($category['name']) ?>
+                                    </span>
+                                <?php endif; ?>
+                                <h3 class="model-card-title">
+                                    <a href="model.php?id=<?= $tm['id'] ?>"><?= sanitize($tm['title']) ?></a>
+                                </h3>
+                                <div class="model-card-author">
+                                    <div class="author-avatar">
+                                        <?= strtoupper(substr($tm['author'], 0, 1)) ?>
+                                    </div>
+                                    <a href="profile.php?id=<?= $tm['user_id'] ?>"><?= sanitize($tm['author']) ?></a>
+                                </div>
+                                <div class="model-card-meta">
+                                    <span><i class="fas fa-download"></i> <?= $tm['downloads'] ?? 0 ?></span>
+                                    <span><i class="fas fa-heart"></i> <?= $tm['likes'] ?? 0 ?></span>
+                                    <span><i class="fas fa-eye"></i> <?= $tm['views'] ?? 0 ?></span>
+                                </div>
+                            </div>
+                        </div>
+                    <?php endforeach; ?>
+                </div>
+            </div>
+        </section>
+        <?php endif; ?>
+
         <!-- Categories Section -->
         <section class="container" style="margin-bottom: 60px;">
             <div class="section-header">
@@ -159,14 +277,20 @@ foreach ($recentModels as $index => $model) {
             <?php else: ?>
                 <div class="model-grid">
                     <?php foreach ($recentModels as $model): ?>
-                        <?php 
+                        <?php
                         $category = getCategory($model['category']);
+                        $fileCount = $model['file_count'] ?? 1;
                         ?>
                         <div class="card model-card">
                             <div class="model-card-preview">
                                 <div class="preview-placeholder" data-stl-thumb="uploads/<?= sanitize($model['filename']) ?>">
                                     <i class="fas fa-cube"></i>
                                 </div>
+                                <?php if ($fileCount > 1): ?>
+                                <div style="position: absolute; top: 12px; right: 12px;">
+                                    <span class="file-count-badge"><?= $fileCount ?> files</span>
+                                </div>
+                                <?php endif; ?>
                                 <div class="model-card-overlay">
                                     <div class="model-card-actions">
                                         <a href="model.php?id=<?= $model['id'] ?>" class="btn btn-primary btn-sm">
@@ -225,5 +349,48 @@ foreach ($recentModels as $index => $model) {
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/STLLoader.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
     <script src="js/app.js"></script>
+    <script>
+        // Animated counter for stats
+        function animateCounters() {
+            const counters = document.querySelectorAll('[data-count]');
+            const duration = 2000;
+            const frameDuration = 1000 / 60;
+            const totalFrames = Math.round(duration / frameDuration);
+
+            counters.forEach(counter => {
+                const target = parseInt(counter.dataset.count) || 0;
+                let frame = 0;
+
+                const easeOutQuad = t => t * (2 - t);
+
+                const animate = () => {
+                    frame++;
+                    const progress = easeOutQuad(frame / totalFrames);
+                    const current = Math.round(target * progress);
+                    counter.textContent = current.toLocaleString();
+
+                    if (frame < totalFrames) {
+                        requestAnimationFrame(animate);
+                    } else {
+                        counter.textContent = target.toLocaleString();
+                    }
+                };
+
+                // Start animation when element is in view
+                const observer = new IntersectionObserver((entries) => {
+                    entries.forEach(entry => {
+                        if (entry.isIntersecting) {
+                            animate();
+                            observer.unobserve(entry.target);
+                        }
+                    });
+                }, { threshold: 0.5 });
+
+                observer.observe(counter);
+            });
+        }
+
+        document.addEventListener('DOMContentLoaded', animateCounters);
+    </script>
 </body>
 </html>

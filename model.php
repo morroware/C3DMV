@@ -102,11 +102,60 @@ foreach ($relatedModels as $index => $rm) {
             <div class="model-header">
                 <!-- 3D Viewer Column -->
                 <div>
+                    <?php
+                    // Get files array (support both old single-file and new multi-file format)
+                    $files = $model['files'] ?? [['filename' => $model['filename'], 'original_name' => pathinfo($model['filename'], PATHINFO_FILENAME), 'filesize' => $model['filesize']]];
+                    $fileCount = count($files);
+                    ?>
+
+                    <?php if ($fileCount > 1): ?>
+                    <!-- File Selector Tabs -->
+                    <div class="file-selector" style="margin-bottom: 16px;">
+                        <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 12px;">
+                            <span class="file-count-badge"><?= $fileCount ?> files</span>
+                            <span style="color: var(--text-secondary); font-size: 0.9rem;">Click to switch between files</span>
+                        </div>
+                        <div class="file-tabs" id="model-file-tabs">
+                            <?php foreach ($files as $index => $file): ?>
+                            <button type="button" class="file-tab <?= $index === 0 ? 'active' : '' ?>"
+                                    data-file-index="<?= $index ?>"
+                                    data-file-url="uploads/<?= sanitize($file['filename']) ?>">
+                                <i class="fas fa-cube"></i>
+                                <?= sanitize($file['original_name'] ?? pathinfo($file['filename'], PATHINFO_FILENAME)) ?>
+                            </button>
+                            <?php endforeach; ?>
+                        </div>
+                    </div>
+                    <?php endif; ?>
+
                     <div class="viewer-container">
                         <div class="viewer-loading">
                             <div class="spinner"></div>
                         </div>
-                        <div class="viewer-canvas" data-stl-viewer data-stl-url="uploads/<?= sanitize($model['filename']) ?>"></div>
+                        <div class="screenshot-flash" id="screenshot-flash"></div>
+
+                        <!-- Toolbar (top-left) -->
+                        <div class="viewer-toolbar">
+                            <div class="viewer-color-picker">
+                                <button class="color-picker-btn" id="color-picker-btn" title="Change Color"></button>
+                                <div class="color-palette" id="color-palette">
+                                    <div class="color-swatch" style="background: #00f0ff;" data-color="0x00f0ff"></div>
+                                    <div class="color-swatch" style="background: #ff00aa;" data-color="0xff00aa"></div>
+                                    <div class="color-swatch" style="background: #f0ff00;" data-color="0xf0ff00"></div>
+                                    <div class="color-swatch" style="background: #00ff88;" data-color="0x00ff88"></div>
+                                    <div class="color-swatch" style="background: #ff6b35;" data-color="0xff6b35"></div>
+                                    <div class="color-swatch" style="background: #a855f7;" data-color="0xa855f7"></div>
+                                    <div class="color-swatch" style="background: #ffffff;" data-color="0xffffff"></div>
+                                    <div class="color-swatch" style="background: #888888;" data-color="0x888888"></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="viewer-canvas" id="main-viewer"
+                             data-stl-viewer
+                             data-stl-url="uploads/<?= sanitize($files[0]['filename']) ?>"></div>
+
+                        <!-- Controls (bottom-right) -->
                         <div class="viewer-controls">
                             <button class="btn btn-secondary btn-icon" data-viewer-control="reset" title="Reset View">
                                 <i class="fas fa-home"></i>
@@ -115,6 +164,31 @@ foreach ($relatedModels as $index => $rm) {
                                 <i class="fas fa-sync-alt"></i>
                             </button>
                             <button class="btn btn-secondary btn-icon" data-viewer-control="wireframe" title="Wireframe">
+                                <i class="fas fa-border-all"></i>
+                            </button>
+                            <button class="btn btn-secondary btn-icon" data-viewer-control="screenshot" title="Screenshot">
+                                <i class="fas fa-camera"></i>
+                            </button>
+                            <button class="btn btn-secondary btn-icon" data-viewer-control="fullscreen" title="Fullscreen">
+                                <i class="fas fa-expand"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Fullscreen Viewer -->
+                    <div class="viewer-fullscreen" id="fullscreen-viewer">
+                        <button class="btn btn-secondary btn-icon fullscreen-close" onclick="closeFullscreen()">
+                            <i class="fas fa-times"></i>
+                        </button>
+                        <div class="viewer-canvas" id="fullscreen-canvas"></div>
+                        <div class="viewer-controls">
+                            <button class="btn btn-secondary btn-icon" data-fs-control="reset" title="Reset View">
+                                <i class="fas fa-home"></i>
+                            </button>
+                            <button class="btn btn-secondary btn-icon active" data-fs-control="rotate" title="Auto Rotate">
+                                <i class="fas fa-sync-alt"></i>
+                            </button>
+                            <button class="btn btn-secondary btn-icon" data-fs-control="wireframe" title="Wireframe">
                                 <i class="fas fa-border-all"></i>
                             </button>
                         </div>
@@ -312,18 +386,199 @@ foreach ($relatedModels as $index => $rm) {
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
     <script src="js/app.js"></script>
     <script>
+        // Store viewer reference globally
+        let mainViewer = null;
+        let fullscreenViewer = null;
+        let currentModelColor = 0x00f0ff;
+        let currentStlUrl = '';
+
+        // Initialize after DOM ready
+        document.addEventListener('DOMContentLoaded', () => {
+            const viewerContainer = document.getElementById('main-viewer');
+            if (viewerContainer) {
+                currentStlUrl = viewerContainer.dataset.stlUrl;
+                mainViewer = viewerContainer._viewer;
+            }
+
+            // File tab switching (for multi-file models)
+            const fileTabs = document.getElementById('model-file-tabs');
+            if (fileTabs) {
+                fileTabs.addEventListener('click', (e) => {
+                    const tab = e.target.closest('.file-tab');
+                    if (!tab) return;
+
+                    // Update active state
+                    fileTabs.querySelectorAll('.file-tab').forEach(t => t.classList.remove('active'));
+                    tab.classList.add('active');
+
+                    // Load new file
+                    const url = tab.dataset.fileUrl;
+                    currentStlUrl = url;
+                    loadNewFile(url);
+                });
+            }
+
+            // Color picker
+            const colorBtn = document.getElementById('color-picker-btn');
+            const colorPalette = document.getElementById('color-palette');
+
+            if (colorBtn && colorPalette) {
+                colorBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    colorPalette.classList.toggle('active');
+                });
+
+                colorPalette.addEventListener('click', (e) => {
+                    const swatch = e.target.closest('.color-swatch');
+                    if (swatch) {
+                        const colorHex = parseInt(swatch.dataset.color);
+                        currentModelColor = colorHex;
+                        colorBtn.style.background = swatch.style.background;
+
+                        if (mainViewer) {
+                            mainViewer.setColor(colorHex);
+                        }
+                        colorPalette.classList.remove('active');
+                    }
+                });
+
+                // Close palette when clicking outside
+                document.addEventListener('click', () => {
+                    colorPalette.classList.remove('active');
+                });
+            }
+
+            // Screenshot functionality
+            document.querySelectorAll('[data-viewer-control="screenshot"]').forEach(btn => {
+                btn.addEventListener('click', takeScreenshot);
+            });
+
+            // Fullscreen functionality
+            document.querySelectorAll('[data-viewer-control="fullscreen"]').forEach(btn => {
+                btn.addEventListener('click', openFullscreen);
+            });
+
+            // ESC to close fullscreen
+            document.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape') closeFullscreen();
+            });
+        });
+
+        function loadNewFile(url) {
+            const viewerContainer = document.getElementById('main-viewer');
+            if (!viewerContainer) return;
+
+            // Show loading
+            const loading = viewerContainer.closest('.viewer-container')?.querySelector('.viewer-loading');
+            if (loading) loading.style.display = 'flex';
+
+            // Get or create viewer
+            let viewer = viewerContainer._viewer;
+            if (!viewer) {
+                viewer = new STLViewer(viewerContainer, { modelColor: currentModelColor });
+                viewerContainer._viewer = viewer;
+            }
+
+            viewer.loadSTL(url).then(() => {
+                if (loading) loading.style.display = 'none';
+                viewer.setColor(currentModelColor);
+                mainViewer = viewer;
+            }).catch(err => {
+                Toast.error('Failed to load model');
+                console.error(err);
+            });
+        }
+
+        function takeScreenshot() {
+            const viewerContainer = document.getElementById('main-viewer');
+            const viewer = viewerContainer?._viewer;
+            if (!viewer || !viewer.renderer) return;
+
+            // Flash effect
+            const flash = document.getElementById('screenshot-flash');
+            if (flash) {
+                flash.classList.add('active');
+                setTimeout(() => flash.classList.remove('active'), 300);
+            }
+
+            // Capture
+            viewer.renderer.render(viewer.scene, viewer.camera);
+            const dataUrl = viewer.renderer.domElement.toDataURL('image/png');
+
+            // Download
+            const link = document.createElement('a');
+            link.download = 'model-screenshot.png';
+            link.href = dataUrl;
+            link.click();
+
+            Toast.success('Screenshot saved!');
+        }
+
+        function openFullscreen() {
+            const fsContainer = document.getElementById('fullscreen-viewer');
+            const fsCanvas = document.getElementById('fullscreen-canvas');
+            if (!fsContainer || !fsCanvas) return;
+
+            fsContainer.classList.add('active');
+            document.body.style.overflow = 'hidden';
+
+            // Create fullscreen viewer
+            if (fullscreenViewer) {
+                fullscreenViewer.dispose();
+            }
+
+            fullscreenViewer = new STLViewer(fsCanvas, { modelColor: currentModelColor, autoRotate: true });
+            fullscreenViewer.loadSTL(currentStlUrl).then(() => {
+                fullscreenViewer.setColor(currentModelColor);
+            });
+
+            // Setup fullscreen controls
+            document.querySelectorAll('[data-fs-control]').forEach(btn => {
+                btn.onclick = () => {
+                    const action = btn.dataset.fsControl;
+                    if (!fullscreenViewer) return;
+
+                    switch (action) {
+                        case 'reset':
+                            fullscreenViewer.resetView();
+                            break;
+                        case 'wireframe':
+                            btn.classList.toggle('active');
+                            fullscreenViewer.setWireframe(btn.classList.contains('active'));
+                            break;
+                        case 'rotate':
+                            btn.classList.toggle('active');
+                            fullscreenViewer.setAutoRotate(btn.classList.contains('active'));
+                            break;
+                    }
+                };
+            });
+        }
+
+        function closeFullscreen() {
+            const fsContainer = document.getElementById('fullscreen-viewer');
+            if (!fsContainer) return;
+
+            fsContainer.classList.remove('active');
+            document.body.style.overflow = '';
+
+            if (fullscreenViewer) {
+                fullscreenViewer.dispose();
+                fullscreenViewer = null;
+            }
+        }
+
         async function downloadModel(id) {
             try {
                 const response = await API.downloadModel(id);
                 if (response.success) {
-                    // Create download link
                     const link = document.createElement('a');
                     link.href = response.download_url;
                     link.download = response.filename;
                     document.body.appendChild(link);
                     link.click();
                     document.body.removeChild(link);
-                    
+
                     Toast.success('Download started!');
                 } else {
                     Toast.error(response.error || 'Download failed');
@@ -332,7 +587,7 @@ foreach ($relatedModels as $index => $rm) {
                 Toast.error('Download failed');
             }
         }
-        
+
         async function likeModel(id) {
             try {
                 const response = await API.likeModel(id);
@@ -344,7 +599,7 @@ foreach ($relatedModels as $index => $rm) {
                 Toast.error('Failed to like');
             }
         }
-        
+
         async function favoriteModel(id) {
             try {
                 const response = await API.favoriteModel(id);
@@ -366,12 +621,12 @@ foreach ($relatedModels as $index => $rm) {
                 Toast.error('Please log in to save');
             }
         }
-        
+
         async function deleteModel(id) {
             if (!confirm('Are you sure you want to delete this model? This cannot be undone.')) {
                 return;
             }
-            
+
             try {
                 const response = await API.deleteModel(id);
                 if (response.success) {
