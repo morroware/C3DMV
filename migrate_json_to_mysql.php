@@ -230,6 +230,28 @@ if (!$isCli) {
     echo '<h2>🔄 Migration Progress</h2><div class="progress">';
 }
 
+// Verify tables exist before migration
+outputMsg("Verifying database tables...", 'info');
+$requiredTables = ['users', 'categories', 'models', 'model_files', 'model_photos', 'favorites'];
+$missingTables = [];
+
+foreach ($requiredTables as $table) {
+    $result = $conn->query("SHOW TABLES LIKE '$table'");
+    if ($result->num_rows === 0) {
+        $missingTables[] = $table;
+    }
+}
+
+if (!empty($missingTables)) {
+    outputMsg("❌ Missing database tables: " . implode(', ', $missingTables), 'error');
+    outputMsg("Please run setup_database.php first to create the database schema.", 'error');
+    if (!$isCli) {
+        echo '<a href="setup_database.php" class="btn">⚙️ Run Database Setup</a></div></body></html>';
+    }
+    exit;
+}
+outputMsg("✓ All database tables found", 'success');
+
 // Helper function to read JSON
 function readJsonFile($file) {
     if (!file_exists($file)) return [];
@@ -248,22 +270,37 @@ if (!empty($categories)) {
 
     if (!$stmt) {
         outputMsg("❌ Failed to prepare category statement: " . $conn->error, 'error');
+        outputMsg("MySQL Error: " . $conn->errno . " - " . $conn->error, 'error');
     } else {
+        outputMsg("✓ Category statement prepared successfully", 'success');
         foreach ($categories as $cat) {
             outputMsg("  Processing: {$cat['name']}...", 'info');
-            $stmt->bind_param(
-                "ssssi",
-                $cat['id'],
-                $cat['name'],
-                $cat['icon'],
-                $cat['description'] ?? '',
-                $cat['count'] ?? 0
-            );
+
+            // Validate data
+            if (empty($cat['id']) || empty($cat['name'])) {
+                outputMsg("  ⚠️ Skipping invalid category (missing id or name)", 'error');
+                continue;
+            }
+
+            $catId = $cat['id'];
+            $catName = $cat['name'];
+            $catIcon = $cat['icon'];
+            $catDesc = $cat['description'] ?? '';
+            $catCount = $cat['count'] ?? 0;
+
+            outputMsg("  Binding parameters for {$catName}...", 'info');
+            if (!$stmt->bind_param("ssssi", $catId, $catName, $catIcon, $catDesc, $catCount)) {
+                outputMsg("  ❌ Failed to bind parameters: " . $stmt->error, 'error');
+                continue;
+            }
+
+            outputMsg("  Executing insert for {$catName}...", 'info');
             if ($stmt->execute()) {
                 $categoryCount++;
-                outputMsg("  ✓ {$cat['name']}", 'success');
+                outputMsg("  ✓ {$catName}", 'success');
             } else {
-                outputMsg("  ❌ Failed to migrate category '{$cat['name']}': " . $stmt->error, 'error');
+                outputMsg("  ❌ Failed to execute for '{$catName}': " . $stmt->error, 'error');
+                outputMsg("  MySQL Error #" . $stmt->errno . ": " . $stmt->error, 'error');
             }
         }
         $stmt->close();
