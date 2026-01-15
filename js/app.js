@@ -559,19 +559,20 @@ class ThumbnailViewer {
     constructor(container, url) {
         this.container = container;
         this.url = url;
+        this.disposed = false;
+        this.animationId = null;
+        this.scene = null;
+        this.camera = null;
+        this.renderer = null;
+        this.mesh = null;
+        this.model = null;
 
-        // Prevent double initialization - check multiple indicators
-        if (this.container.dataset.initialized === 'true' ||
-            this.container.querySelector('canvas') ||
-            this.container._thumbnailViewer) {
-            console.warn('ThumbnailViewer already initialized for', url);
+        // Prevent double initialization
+        if (container.dataset.viewerInitialized === 'true') {
             return;
         }
 
-        // Mark as initialized immediately to prevent race conditions
-        this.container.dataset.initialized = 'true';
-        this.container._thumbnailViewer = this;
-
+        container.dataset.viewerInitialized = 'true';
         this.init();
     }
 
@@ -579,7 +580,6 @@ class ThumbnailViewer {
         const width = this.container.clientWidth;
         const height = this.container.clientHeight;
 
-        console.log('ThumbnailViewer.init() called for:', this.url);
         this.container.innerHTML = '';
 
         // Scene
@@ -618,9 +618,8 @@ class ThumbnailViewer {
     }
 
     showPlaceholder() {
-        // Show a styled placeholder when model fails to load
-        // Only if there isn't already a canvas (working viewer)
-        if (!this.container.querySelector('canvas')) {
+        // Show a styled placeholder when model fails to load or when unloaded
+        if (this.container) {
             this.container.innerHTML = `
                 <div class="model-placeholder">
                     <i class="fas fa-cube"></i>
@@ -730,7 +729,9 @@ class ThumbnailViewer {
     }
 
     animate() {
-        requestAnimationFrame(() => this.animate());
+        if (this.disposed) return;
+
+        this.animationId = requestAnimationFrame(() => this.animate());
 
         if (this.mesh) {
             this.mesh.rotation.y += 0.005;
@@ -740,6 +741,52 @@ class ThumbnailViewer {
         }
 
         this.renderer.render(this.scene, this.camera);
+    }
+
+    dispose() {
+        if (this.disposed) return;
+
+        this.disposed = true;
+
+        // Cancel animation frame
+        if (this.animationId) {
+            cancelAnimationFrame(this.animationId);
+        }
+
+        // Dispose geometries and materials
+        if (this.mesh) {
+            if (this.mesh.geometry) this.mesh.geometry.dispose();
+            if (this.mesh.material) this.mesh.material.dispose();
+            this.scene.remove(this.mesh);
+        }
+
+        if (this.model) {
+            this.model.traverse((child) => {
+                if (child.isMesh) {
+                    if (child.geometry) child.geometry.dispose();
+                    if (child.material) child.material.dispose();
+                }
+            });
+            this.scene.remove(this.model);
+        }
+
+        // Dispose renderer and free WebGL context
+        if (this.renderer) {
+            this.renderer.dispose();
+            if (this.renderer.domElement && this.renderer.domElement.parentNode) {
+                this.renderer.domElement.parentNode.removeChild(this.renderer.domElement);
+            }
+        }
+
+        // Clear references for garbage collection
+        this.scene = null;
+        this.camera = null;
+        this.renderer = null;
+        this.mesh = null;
+        this.model = null;
+
+        // Show placeholder so it can be reloaded when scrolled back into view
+        this.showPlaceholder();
     }
 }
 
@@ -1165,12 +1212,11 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // Initialize thumbnail viewers
+    // Initialize thumbnail viewers (simple approach)
     document.querySelectorAll('[data-stl-thumb], [data-model-thumb]').forEach(container => {
         const url = container.dataset.stlThumb || container.dataset.modelThumb;
         if (url) {
             new ThumbnailViewer(container, url);
-            // Note: data-initialized is already set inside ThumbnailViewer constructor
         }
     });
 
@@ -1341,12 +1387,11 @@ class InfiniteScroll {
     }
 
     initNewThumbnails() {
-        // Initialize any new thumbnail viewers that were added
-        this.options.container.querySelectorAll('[data-model-thumb]:not([data-initialized])').forEach(container => {
+        // Initialize any new thumbnail viewers
+        this.options.container.querySelectorAll('[data-model-thumb]').forEach(container => {
             const url = container.dataset.modelThumb;
-            if (url) {
+            if (url && !container.dataset.viewerInitialized) {
                 new ThumbnailViewer(container, url);
-                container.dataset.initialized = 'true';
             }
         });
     }
