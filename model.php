@@ -530,73 +530,200 @@ foreach ($relatedModels as $index => $rm) {
     <?php if (isLoggedIn() && ($model['user_id'] === $_SESSION['user_id'] || isAdmin())): ?>
     <?php $allCategories = getCategories(); ?>
     <div class="modal-overlay" id="edit-model-modal">
-        <div class="modal" style="max-width: 600px;">
+        <div class="modal" style="max-width: 700px;">
             <div class="modal-header">
                 <h2>Edit Model</h2>
                 <button class="modal-close"><i class="fas fa-times"></i></button>
             </div>
-            <form id="edit-model-form" onsubmit="submitModelEdit(event)">
-                <input type="hidden" name="id" value="<?= $modelId ?>">
+
+            <!-- Tabs -->
+            <div class="auth-tabs" style="margin: 0; border-radius: 0;">
+                <div class="auth-tab active" onclick="showEditTab('details')">
+                    <i class="fas fa-info-circle"></i> Details
+                </div>
+                <div class="auth-tab" onclick="showEditTab('files')">
+                    <i class="fas fa-file"></i> Files (<?= count($files) ?>)
+                </div>
+                <div class="auth-tab" onclick="showEditTab('photos')">
+                    <i class="fas fa-camera"></i> Photos (<?= count($photos) ?>)
+                </div>
+            </div>
+
+            <!-- Details Tab -->
+            <div id="edit-tab-details" class="edit-tab-content">
+                <form id="edit-model-form" onsubmit="submitModelEdit(event)">
+                    <input type="hidden" name="id" value="<?= $modelId ?>">
+                    <div class="modal-body">
+                        <div class="form-group">
+                            <label class="form-label required">Title</label>
+                            <input type="text" name="title" id="edit-model-title" class="form-input" required
+                                   value="<?= sanitize($model['title']) ?>">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Description</label>
+                            <textarea name="description" id="edit-model-description" class="form-textarea" rows="3"><?= sanitize($model['description'] ?? '') ?></textarea>
+                        </div>
+                        <div class="form-row" style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                            <div class="form-group">
+                                <label class="form-label">Category</label>
+                                <select name="category" id="edit-model-category" class="form-select">
+                                    <option value="">Select Category</option>
+                                    <?php foreach ($allCategories as $cat): ?>
+                                        <option value="<?= $cat['id'] ?>" <?= ($model['category'] ?? '') === $cat['id'] ? 'selected' : '' ?>>
+                                            <?= sanitize($cat['name']) ?>
+                                        </option>
+                                    <?php endforeach; ?>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">License</label>
+                                <select name="license" id="edit-model-license" class="form-select">
+                                    <?php
+                                    $licenses = [
+                                        'CC BY' => 'CC BY (Attribution)',
+                                        'CC BY-SA' => 'CC BY-SA (ShareAlike)',
+                                        'CC BY-NC' => 'CC BY-NC (NonCommercial)',
+                                        'CC BY-NC-SA' => 'CC BY-NC-SA',
+                                        'CC0' => 'CC0 (Public Domain)',
+                                        'MIT' => 'MIT License',
+                                        'GPL' => 'GPL License',
+                                        'All Rights Reserved' => 'All Rights Reserved'
+                                    ];
+                                    $currentLicense = $model['license'] ?? 'CC BY-NC';
+                                    foreach ($licenses as $value => $label): ?>
+                                        <option value="<?= $value ?>" <?= $currentLicense === $value ? 'selected' : '' ?>>
+                                            <?= $label ?>
+                                        </option>
+                                    <?php endforeach; ?>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Tags</label>
+                            <input type="text" name="tags" id="edit-model-tags" class="form-input"
+                                   placeholder="Enter tags separated by commas"
+                                   value="<?= sanitize(implode(', ', $model['tags'] ?? [])) ?>">
+                            <div class="form-hint">Separate tags with commas</div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" onclick="Modal.hide('edit-model-modal')">Cancel</button>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-save"></i> Save Changes
+                        </button>
+                    </div>
+                </form>
+            </div>
+
+            <!-- Files Tab -->
+            <div id="edit-tab-files" class="edit-tab-content" style="display: none;">
                 <div class="modal-body">
                     <div class="form-group">
-                        <label class="form-label required">Title</label>
-                        <input type="text" name="title" id="edit-model-title" class="form-input" required
-                               value="<?= sanitize($model['title']) ?>">
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label">Description</label>
-                        <textarea name="description" id="edit-model-description" class="form-textarea" rows="4"><?= sanitize($model['description'] ?? '') ?></textarea>
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label">Category</label>
-                        <select name="category" id="edit-model-category" class="form-select">
-                            <option value="">Select Category</option>
-                            <?php foreach ($allCategories as $cat): ?>
-                                <option value="<?= $cat['id'] ?>" <?= ($model['category'] ?? '') === $cat['id'] ? 'selected' : '' ?>>
-                                    <?= sanitize($cat['name']) ?>
-                                </option>
+                        <label class="form-label">Current Files</label>
+                        <div id="current-files-list" class="file-list">
+                            <?php foreach ($files as $idx => $file): ?>
+                            <div class="file-item" data-filename="<?= sanitize($file['filename']) ?>">
+                                <div class="file-info">
+                                    <i class="fas fa-cube"></i>
+                                    <span class="file-name"><?= sanitize($file['original_name'] ?? $file['filename']) ?></span>
+                                    <span class="file-size">(<?= formatFileSize($file['filesize'] ?? 0) ?>)</span>
+                                </div>
+                                <?php if (count($files) > 1): ?>
+                                <button type="button" class="btn btn-danger btn-sm" onclick="removeFile('<?= sanitize($file['filename']) ?>')">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                                <?php else: ?>
+                                <span class="file-hint" style="color: var(--text-muted); font-size: 0.8rem;">Primary</span>
+                                <?php endif; ?>
+                            </div>
                             <?php endforeach; ?>
-                        </select>
+                        </div>
                     </div>
                     <div class="form-group">
-                        <label class="form-label">License</label>
-                        <select name="license" id="edit-model-license" class="form-select">
-                            <?php
-                            $licenses = [
-                                'CC BY' => 'CC BY (Attribution)',
-                                'CC BY-SA' => 'CC BY-SA (Attribution-ShareAlike)',
-                                'CC BY-NC' => 'CC BY-NC (Attribution-NonCommercial)',
-                                'CC BY-NC-SA' => 'CC BY-NC-SA (Attribution-NonCommercial-ShareAlike)',
-                                'CC0' => 'CC0 (Public Domain)',
-                                'MIT' => 'MIT License',
-                                'GPL' => 'GPL License',
-                                'All Rights Reserved' => 'All Rights Reserved'
-                            ];
-                            $currentLicense = $model['license'] ?? 'CC BY-NC';
-                            foreach ($licenses as $value => $label): ?>
-                                <option value="<?= $value ?>" <?= $currentLicense === $value ? 'selected' : '' ?>>
-                                    <?= $label ?>
-                                </option>
-                            <?php endforeach; ?>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label">Tags</label>
-                        <input type="text" name="tags" id="edit-model-tags" class="form-input"
-                               placeholder="Enter tags separated by commas"
-                               value="<?= sanitize(implode(', ', $model['tags'] ?? [])) ?>">
-                        <div class="form-hint">Separate tags with commas (e.g., gaming, miniature, terrain)</div>
+                        <label class="form-label">Add New File</label>
+                        <div class="file-upload-area" id="file-upload-area">
+                            <input type="file" id="new-file-input" accept=".stl,.obj" style="display: none;">
+                            <div class="upload-placeholder" onclick="document.getElementById('new-file-input').click()">
+                                <i class="fas fa-plus"></i>
+                                <span>Click to add STL or OBJ file</span>
+                            </div>
+                        </div>
+                        <div class="form-hint">Supported: STL, OBJ (max 50MB)</div>
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" onclick="Modal.hide('edit-model-modal')">Cancel</button>
-                    <button type="submit" class="btn btn-primary">
-                        <i class="fas fa-save"></i> Save Changes
-                    </button>
+                    <button type="button" class="btn btn-secondary" onclick="Modal.hide('edit-model-modal')">Close</button>
                 </div>
-            </form>
+            </div>
+
+            <!-- Photos Tab -->
+            <div id="edit-tab-photos" class="edit-tab-content" style="display: none;">
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label class="form-label">Current Photos</label>
+                        <div id="current-photos-list" class="photo-grid" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px;">
+                            <?php if (empty($photos)): ?>
+                            <div class="no-photos" style="grid-column: 1/-1; text-align: center; padding: 20px; color: var(--text-muted);">
+                                No photos yet
+                            </div>
+                            <?php else: ?>
+                            <?php foreach ($photos as $idx => $photo): ?>
+                            <div class="photo-item" data-filename="<?= sanitize($photo) ?>" style="position: relative;">
+                                <img src="uploads/<?= sanitize($photo) ?>" alt="Photo" style="width: 100%; height: 100px; object-fit: cover; border-radius: 8px;">
+                                <button type="button" class="btn btn-danger btn-sm" onclick="removePhoto('<?= sanitize($photo) ?>')"
+                                        style="position: absolute; top: 4px; right: 4px; padding: 4px 8px;">
+                                    <i class="fas fa-times"></i>
+                                </button>
+                                <?php if ($idx === 0): ?>
+                                <span style="position: absolute; bottom: 4px; left: 4px; background: var(--neon-cyan); color: #000; font-size: 0.7rem; padding: 2px 6px; border-radius: 4px;">Primary</span>
+                                <?php endif; ?>
+                            </div>
+                            <?php endforeach; ?>
+                            <?php endif; ?>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Add New Photo</label>
+                        <div class="file-upload-area" id="photo-upload-area">
+                            <input type="file" id="new-photo-input" accept=".jpg,.jpeg,.png,.gif,.webp" style="display: none;">
+                            <div class="upload-placeholder" onclick="document.getElementById('new-photo-input').click()">
+                                <i class="fas fa-camera"></i>
+                                <span>Click to add photo</span>
+                            </div>
+                        </div>
+                        <div class="form-hint">Supported: JPG, PNG, GIF, WebP (max 10MB)</div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" onclick="Modal.hide('edit-model-modal')">Close</button>
+                </div>
+            </div>
         </div>
     </div>
+
+    <style>
+        .file-list { display: flex; flex-direction: column; gap: 8px; }
+        .file-item {
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 12px; background: var(--bg-secondary); border-radius: 8px;
+            border: 1px solid var(--border-color);
+        }
+        .file-info { display: flex; align-items: center; gap: 10px; }
+        .file-info i { color: var(--neon-cyan); }
+        .file-name { font-weight: 500; }
+        .file-size { color: var(--text-muted); font-size: 0.85rem; }
+        .file-upload-area, .photo-upload-area {
+            border: 2px dashed var(--border-color); border-radius: 8px;
+            padding: 20px; text-align: center; cursor: pointer;
+            transition: border-color 0.2s, background 0.2s;
+        }
+        .file-upload-area:hover, .photo-upload-area:hover {
+            border-color: var(--neon-cyan); background: rgba(0, 240, 255, 0.05);
+        }
+        .upload-placeholder { display: flex; flex-direction: column; align-items: center; gap: 8px; color: var(--text-muted); }
+        .upload-placeholder i { font-size: 1.5rem; }
+        .edit-tab-content { max-height: 60vh; overflow-y: auto; }
+    </style>
     <?php endif; ?>
 
     <!-- Footer -->
@@ -1098,8 +1225,21 @@ foreach ($relatedModels as $index => $rm) {
         }
 
         // Edit model functions
+        const modelId = '<?= $modelId ?>';
+
         function openEditModal() {
             Modal.show('edit-model-modal');
+        }
+
+        function showEditTab(tabName) {
+            // Hide all tabs
+            document.querySelectorAll('.edit-tab-content').forEach(tab => tab.style.display = 'none');
+            // Remove active from all tab buttons
+            document.querySelectorAll('#edit-model-modal .auth-tab').forEach(t => t.classList.remove('active'));
+            // Show selected tab
+            document.getElementById('edit-tab-' + tabName).style.display = 'block';
+            // Add active to clicked tab
+            event.target.closest('.auth-tab').classList.add('active');
         }
 
         async function submitModelEdit(e) {
@@ -1131,6 +1271,112 @@ foreach ($relatedModels as $index => $rm) {
                 Toast.error('Failed to update model');
             }
         }
+
+        // File management
+        async function removeFile(filename) {
+            if (!confirm('Remove this file from the model?')) return;
+
+            const formData = new FormData();
+            formData.append('action', 'remove_model_file');
+            formData.append('model_id', modelId);
+            formData.append('filename', filename);
+
+            try {
+                const response = await fetch('api.php', { method: 'POST', body: formData });
+                const result = await response.json();
+
+                if (result.success) {
+                    Toast.success('File removed!');
+                    document.querySelector(`.file-item[data-filename="${filename}"]`)?.remove();
+                } else {
+                    Toast.error(result.error || 'Failed to remove file');
+                }
+            } catch (err) {
+                Toast.error('Failed to remove file');
+            }
+        }
+
+        // Photo management
+        async function removePhoto(filename) {
+            if (!confirm('Remove this photo?')) return;
+
+            const formData = new FormData();
+            formData.append('action', 'remove_model_photo');
+            formData.append('model_id', modelId);
+            formData.append('filename', filename);
+
+            try {
+                const response = await fetch('api.php', { method: 'POST', body: formData });
+                const result = await response.json();
+
+                if (result.success) {
+                    Toast.success('Photo removed!');
+                    document.querySelector(`.photo-item[data-filename="${filename}"]`)?.remove();
+                } else {
+                    Toast.error(result.error || 'Failed to remove photo');
+                }
+            } catch (err) {
+                Toast.error('Failed to remove photo');
+            }
+        }
+
+        // File upload handler
+        document.getElementById('new-file-input')?.addEventListener('change', async function(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const formData = new FormData();
+            formData.append('action', 'add_model_file');
+            formData.append('model_id', modelId);
+            formData.append('file', file);
+
+            Toast.info('Uploading file...');
+
+            try {
+                const response = await fetch('api.php', { method: 'POST', body: formData });
+                const result = await response.json();
+
+                if (result.success) {
+                    Toast.success('File added!');
+                    setTimeout(() => location.reload(), 1000);
+                } else {
+                    Toast.error(result.error || 'Failed to upload file');
+                }
+            } catch (err) {
+                Toast.error('Failed to upload file');
+            }
+
+            e.target.value = '';
+        });
+
+        // Photo upload handler
+        document.getElementById('new-photo-input')?.addEventListener('change', async function(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const formData = new FormData();
+            formData.append('action', 'add_model_photo');
+            formData.append('model_id', modelId);
+            formData.append('photo', file);
+
+            Toast.info('Uploading photo...');
+
+            try {
+                const response = await fetch('api.php', { method: 'POST', body: formData });
+                const result = await response.json();
+
+                if (result.success) {
+                    Toast.success('Photo added!');
+                    setTimeout(() => location.reload(), 1000);
+                } else {
+                    Toast.error(result.error || 'Failed to upload photo');
+                }
+            } catch (err) {
+                Toast.error('Failed to upload photo');
+            }
+
+            e.target.value = '';
+        });
     </script>
 </body>
 </html>
