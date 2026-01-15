@@ -935,6 +935,31 @@ const LazyThumbnailManager = {
         window.addEventListener('beforeunload', () => {
             this.cleanup();
         });
+
+        // Handle browser back/forward cache (bfcache) restoration
+        window.addEventListener('pageshow', (event) => {
+            if (event.persisted) {
+                // Page was restored from bfcache - reset viewer state
+                this.resetOnBfcacheRestore();
+            }
+        });
+    },
+
+    resetOnBfcacheRestore() {
+        // When page is restored from bfcache, the DOM is intact but JS state is lost
+        // Reset all viewer-initialized flags so viewers can be reloaded
+        const allContainers = document.querySelectorAll('[data-viewer-initialized="true"]');
+        allContainers.forEach(container => {
+            delete container.dataset.viewerInitialized;
+            // Remove placeholder-active class if present
+            container.classList.remove('placeholder-active');
+        });
+
+        // Clear the viewerMap since all viewers were disposed on unload
+        this.viewerMap.clear();
+
+        // Re-observe all containers to trigger re-initialization
+        this.observeContainers();
     },
 
     observeContainers() {
