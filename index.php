@@ -336,8 +336,8 @@ foreach ($trendingModels as $index => $model) {
                 <?php if ($totalPages > 1): ?>
                     <div class="pagination">
                         <?php if ($page > 1): ?>
-                            <a href="?page=<?= $page - 1 ?>" class="pagination-btn">
-                                <i class="fas fa-chevron-left"></i> Previous
+                            <a href="?page=<?= $page - 1 ?>" class="pagination-btn" aria-label="Previous page">
+                                <i class="fas fa-arrow-left" aria-hidden="true"></i>
                             </a>
                         <?php endif; ?>
 
@@ -352,8 +352,8 @@ foreach ($trendingModels as $index => $model) {
                         </div>
 
                         <?php if ($page < $totalPages): ?>
-                            <a href="?page=<?= $page + 1 ?>" class="pagination-btn">
-                                Next <i class="fas fa-chevron-right"></i>
+                            <a href="?page=<?= $page + 1 ?>" class="pagination-btn" aria-label="Next page">
+                                <i class="fas fa-arrow-right" aria-hidden="true"></i>
                             </a>
                         <?php endif; ?>
                     </div>
