@@ -310,7 +310,170 @@ switch ($action) {
             jsonResponse(['success' => false, 'error' => 'Failed to delete'], 500);
         }
         break;
-        
+
+    case 'add_model_file':
+        if (!isLoggedIn()) {
+            jsonResponse(['success' => false, 'error' => 'Unauthorized'], 401);
+        }
+
+        $modelId = $_POST['model_id'] ?? '';
+        $model = getModel($modelId);
+
+        if (!$model) {
+            jsonResponse(['success' => false, 'error' => 'Model not found'], 404);
+        }
+
+        // Check ownership or admin
+        if ($model['user_id'] !== $_SESSION['user_id'] && !isAdmin()) {
+            jsonResponse(['success' => false, 'error' => 'Unauthorized'], 403);
+        }
+
+        if (!isset($_FILES['file']) || $_FILES['file']['error'] !== UPLOAD_ERR_OK) {
+            jsonResponse(['success' => false, 'error' => 'No file uploaded'], 400);
+        }
+
+        $originalName = pathinfo($_FILES['file']['name'], PATHINFO_FILENAME);
+        $extension = strtolower(pathinfo($_FILES['file']['name'], PATHINFO_EXTENSION));
+        $size = $_FILES['file']['size'];
+        $tmpName = $_FILES['file']['tmp_name'];
+
+        // Validate extension
+        $allowedExtensions = ['stl', 'obj'];
+        if (!in_array($extension, $allowedExtensions)) {
+            jsonResponse(['success' => false, 'error' => 'Only STL and OBJ files allowed'], 400);
+        }
+
+        // Validate size (50MB max)
+        if ($size > 50 * 1024 * 1024) {
+            jsonResponse(['success' => false, 'error' => 'File too large (max 50MB)'], 400);
+        }
+
+        // Generate unique filename
+        $newFilename = generateId() . '.' . $extension;
+        $uploadPath = UPLOADS_DIR . $newFilename;
+
+        if (move_uploaded_file($tmpName, $uploadPath)) {
+            $fileData = [
+                'filename' => $newFilename,
+                'filesize' => $size,
+                'original_name' => $originalName,
+                'extension' => $extension,
+                'has_color' => false
+            ];
+
+            if (addModelFile($modelId, $fileData)) {
+                jsonResponse(['success' => true, 'file' => $fileData]);
+            } else {
+                unlink($uploadPath);
+                jsonResponse(['success' => false, 'error' => 'Failed to add file to model'], 500);
+            }
+        } else {
+            jsonResponse(['success' => false, 'error' => 'Failed to upload file'], 500);
+        }
+        break;
+
+    case 'remove_model_file':
+        if (!isLoggedIn()) {
+            jsonResponse(['success' => false, 'error' => 'Unauthorized'], 401);
+        }
+
+        $modelId = $_POST['model_id'] ?? '';
+        $filename = $_POST['filename'] ?? '';
+        $model = getModel($modelId);
+
+        if (!$model) {
+            jsonResponse(['success' => false, 'error' => 'Model not found'], 404);
+        }
+
+        // Check ownership or admin
+        if ($model['user_id'] !== $_SESSION['user_id'] && !isAdmin()) {
+            jsonResponse(['success' => false, 'error' => 'Unauthorized'], 403);
+        }
+
+        if (removeModelFile($modelId, $filename)) {
+            jsonResponse(['success' => true]);
+        } else {
+            jsonResponse(['success' => false, 'error' => 'Cannot remove file (must have at least one)'], 400);
+        }
+        break;
+
+    case 'add_model_photo':
+        if (!isLoggedIn()) {
+            jsonResponse(['success' => false, 'error' => 'Unauthorized'], 401);
+        }
+
+        $modelId = $_POST['model_id'] ?? '';
+        $model = getModel($modelId);
+
+        if (!$model) {
+            jsonResponse(['success' => false, 'error' => 'Model not found'], 404);
+        }
+
+        // Check ownership or admin
+        if ($model['user_id'] !== $_SESSION['user_id'] && !isAdmin()) {
+            jsonResponse(['success' => false, 'error' => 'Unauthorized'], 403);
+        }
+
+        if (!isset($_FILES['photo']) || $_FILES['photo']['error'] !== UPLOAD_ERR_OK) {
+            jsonResponse(['success' => false, 'error' => 'No photo uploaded'], 400);
+        }
+
+        $extension = strtolower(pathinfo($_FILES['photo']['name'], PATHINFO_EXTENSION));
+        $size = $_FILES['photo']['size'];
+        $tmpName = $_FILES['photo']['tmp_name'];
+
+        // Validate extension
+        $allowedExtensions = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
+        if (!in_array($extension, $allowedExtensions)) {
+            jsonResponse(['success' => false, 'error' => 'Only JPG, PNG, GIF, WebP allowed'], 400);
+        }
+
+        // Validate size (10MB max)
+        if ($size > 10 * 1024 * 1024) {
+            jsonResponse(['success' => false, 'error' => 'Photo too large (max 10MB)'], 400);
+        }
+
+        // Generate unique filename
+        $newFilename = 'photo_' . generateId() . '.' . $extension;
+        $uploadPath = UPLOADS_DIR . $newFilename;
+
+        if (move_uploaded_file($tmpName, $uploadPath)) {
+            if (addModelPhoto($modelId, $newFilename)) {
+                jsonResponse(['success' => true, 'photo' => $newFilename]);
+            } else {
+                unlink($uploadPath);
+                jsonResponse(['success' => false, 'error' => 'Failed to add photo to model'], 500);
+            }
+        } else {
+            jsonResponse(['success' => false, 'error' => 'Failed to upload photo'], 500);
+        }
+        break;
+
+    case 'remove_model_photo':
+        if (!isLoggedIn()) {
+            jsonResponse(['success' => false, 'error' => 'Unauthorized'], 401);
+        }
+
+        $modelId = $_POST['model_id'] ?? '';
+        $filename = $_POST['filename'] ?? '';
+        $model = getModel($modelId);
+
+        if (!$model) {
+            jsonResponse(['success' => false, 'error' => 'Model not found'], 404);
+        }
+
+        // Check ownership or admin
+        if ($model['user_id'] !== $_SESSION['user_id'] && !isAdmin()) {
+            jsonResponse(['success' => false, 'error' => 'Unauthorized'], 403);
+        }
+
+        if (removeModelPhoto($modelId, $filename)) {
+            jsonResponse(['success' => true]);
+        } else {
+            jsonResponse(['success' => false, 'error' => 'Failed to remove photo'], 500);
+        }
+        break;
+
     case 'download_model':
         if (!isLoggedIn()) {
             jsonResponse(['success' => false, 'error' => 'Please log in to download'], 401);

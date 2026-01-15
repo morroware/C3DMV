@@ -589,6 +589,193 @@ if (USE_MYSQL) {
         return false;
     }
 
+    /**
+     * Add a file to an existing model
+     */
+    function addModelFile(string $modelId, array $fileData): bool {
+        $conn = getDbConnection();
+
+        // Get current max file_order
+        $stmt = $conn->prepare("SELECT MAX(file_order) as max_order FROM model_files WHERE model_id = ?");
+        $stmt->bind_param("s", $modelId);
+        $stmt->execute();
+        $result = $stmt->get_result()->fetch_assoc();
+        $nextOrder = ($result['max_order'] ?? -1) + 1;
+
+        // Insert new file
+        $stmt = $conn->prepare("
+            INSERT INTO model_files (model_id, filename, filesize, original_name, extension, has_color, file_order)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        ");
+
+        $hasColor = (int)($fileData['has_color'] ?? false);
+        $filesize = (int)$fileData['filesize'];
+
+        $stmt->bind_param(
+            "ssissii",
+            $modelId,
+            $fileData['filename'],
+            $filesize,
+            $fileData['original_name'],
+            $fileData['extension'],
+            $hasColor,
+            $nextOrder
+        );
+
+        if ($stmt->execute()) {
+            // Update model's total filesize and file_count
+            $conn->query("UPDATE models SET
+                filesize = (SELECT COALESCE(SUM(filesize), 0) FROM model_files WHERE model_id = '$modelId'),
+                file_count = (SELECT COUNT(*) FROM model_files WHERE model_id = '$modelId'),
+                updated_at = NOW()
+                WHERE id = '$modelId'");
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
+     * Remove a file from a model
+     */
+    function removeModelFile(string $modelId, string $filename): bool {
+        $conn = getDbConnection();
+
+        // Check if model has more than one file (can't remove the last file)
+        $stmt = $conn->prepare("SELECT COUNT(*) as count FROM model_files WHERE model_id = ?");
+        $stmt->bind_param("s", $modelId);
+        $stmt->execute();
+        $count = $stmt->get_result()->fetch_assoc()['count'];
+
+        if ($count <= 1) {
+            return false; // Can't remove the last file
+        }
+
+        // Delete from database
+        $stmt = $conn->prepare("DELETE FROM model_files WHERE model_id = ? AND filename = ?");
+        $stmt->bind_param("ss", $modelId, $filename);
+
+        if ($stmt->execute() && $stmt->affected_rows > 0) {
+            // Delete physical file
+            $filepath = UPLOADS_DIR . $filename;
+            if (file_exists($filepath)) {
+                unlink($filepath);
+            }
+
+            // Update model's total filesize and file_count
+            $conn->query("UPDATE models SET
+                filesize = (SELECT COALESCE(SUM(filesize), 0) FROM model_files WHERE model_id = '$modelId'),
+                file_count = (SELECT COUNT(*) FROM model_files WHERE model_id = '$modelId'),
+                updated_at = NOW()
+                WHERE id = '$modelId'");
+
+            // Re-order remaining files
+            $stmt = $conn->prepare("SELECT filename FROM model_files WHERE model_id = ? ORDER BY file_order");
+            $stmt->bind_param("s", $modelId);
+            $stmt->execute();
+            $result = $stmt->get_result();
+
+            $order = 0;
+            while ($row = $result->fetch_assoc()) {
+                $conn->query("UPDATE model_files SET file_order = $order WHERE model_id = '$modelId' AND filename = '{$row['filename']}'");
+                $order++;
+            }
+
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
+     * Add a photo to an existing model
+     */
+    function addModelPhoto(string $modelId, string $filename): bool {
+        $conn = getDbConnection();
+
+        // Get current max photo_order
+        $stmt = $conn->prepare("SELECT MAX(photo_order) as max_order FROM model_photos WHERE model_id = ?");
+        $stmt->bind_param("s", $modelId);
+        $stmt->execute();
+        $result = $stmt->get_result()->fetch_assoc();
+        $nextOrder = ($result['max_order'] ?? -1) + 1;
+
+        // Check if this is the first photo (will be primary)
+        $stmt = $conn->prepare("SELECT COUNT(*) as count FROM model_photos WHERE model_id = ?");
+        $stmt->bind_param("s", $modelId);
+        $stmt->execute();
+        $count = $stmt->get_result()->fetch_assoc()['count'];
+        $isPrimary = ($count === 0) ? 1 : 0;
+
+        // Insert new photo
+        $stmt = $conn->prepare("INSERT INTO model_photos (model_id, filename, is_primary, photo_order) VALUES (?, ?, ?, ?)");
+        $stmt->bind_param("ssii", $modelId, $filename, $isPrimary, $nextOrder);
+
+        if ($stmt->execute()) {
+            // Update model's photo field if this is the first/primary photo
+            if ($isPrimary) {
+                $conn->query("UPDATE models SET photo = '$filename', updated_at = NOW() WHERE id = '$modelId'");
+            } else {
+                $conn->query("UPDATE models SET updated_at = NOW() WHERE id = '$modelId'");
+            }
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
+     * Remove a photo from a model
+     */
+    function removeModelPhoto(string $modelId, string $filename): bool {
+        $conn = getDbConnection();
+
+        // Check if this photo was primary
+        $stmt = $conn->prepare("SELECT is_primary FROM model_photos WHERE model_id = ? AND filename = ?");
+        $stmt->bind_param("ss", $modelId, $filename);
+        $stmt->execute();
+        $result = $stmt->get_result()->fetch_assoc();
+        $wasPrimary = $result ? (bool)$result['is_primary'] : false;
+
+        // Delete from database
+        $stmt = $conn->prepare("DELETE FROM model_photos WHERE model_id = ? AND filename = ?");
+        $stmt->bind_param("ss", $modelId, $filename);
+
+        if ($stmt->execute() && $stmt->affected_rows > 0) {
+            // Delete physical file
+            $filepath = UPLOADS_DIR . $filename;
+            if (file_exists($filepath)) {
+                unlink($filepath);
+            }
+
+            // Re-order remaining photos and set new primary if needed
+            $stmt = $conn->prepare("SELECT filename FROM model_photos WHERE model_id = ? ORDER BY photo_order");
+            $stmt->bind_param("s", $modelId);
+            $stmt->execute();
+            $result = $stmt->get_result();
+
+            $order = 0;
+            $newPrimary = null;
+            while ($row = $result->fetch_assoc()) {
+                $isPrimary = ($order === 0) ? 1 : 0;
+                if ($order === 0) $newPrimary = $row['filename'];
+                $conn->query("UPDATE model_photos SET photo_order = $order, is_primary = $isPrimary WHERE model_id = '$modelId' AND filename = '{$row['filename']}'");
+                $order++;
+            }
+
+            // Update model's photo field
+            if ($newPrimary) {
+                $conn->query("UPDATE models SET photo = '$newPrimary', updated_at = NOW() WHERE id = '$modelId'");
+            } else {
+                $conn->query("UPDATE models SET photo = NULL, updated_at = NOW() WHERE id = '$modelId'");
+            }
+
+            return true;
+        }
+
+        return false;
+    }
+
     function incrementModelStat(string $id, string $stat): bool {
         $conn = getDbConnection();
         $allowedStats = ['downloads', 'likes', 'views'];
@@ -1058,6 +1245,140 @@ if (USE_MYSQL) {
             if (file_exists($filepath)) unlink($filepath);
 
             return true;
+        }
+        return false;
+    }
+
+    /**
+     * Add a file to an existing model (JSON storage)
+     */
+    function addModelFile(string $modelId, array $fileData): bool {
+        $models = getModels();
+        foreach ($models as &$model) {
+            if ($model['id'] === $modelId) {
+                if (!isset($model['files'])) {
+                    $model['files'] = [];
+                }
+
+                $model['files'][] = [
+                    'filename' => $fileData['filename'],
+                    'filesize' => (int)$fileData['filesize'],
+                    'original_name' => $fileData['original_name'],
+                    'extension' => $fileData['extension'],
+                    'has_color' => $fileData['has_color'] ?? false,
+                    'file_order' => count($model['files'])
+                ];
+
+                // Update totals
+                $model['filesize'] = array_sum(array_column($model['files'], 'filesize'));
+                $model['file_count'] = count($model['files']);
+                $model['updated_at'] = date('Y-m-d H:i:s');
+
+                return writeJsonFile(MODELS_FILE, $models);
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Remove a file from a model (JSON storage)
+     */
+    function removeModelFile(string $modelId, string $filename): bool {
+        $models = getModels();
+        foreach ($models as &$model) {
+            if ($model['id'] === $modelId) {
+                if (!isset($model['files']) || count($model['files']) <= 1) {
+                    return false; // Can't remove the last file
+                }
+
+                // Find and remove the file
+                $found = false;
+                $model['files'] = array_values(array_filter($model['files'], function($f) use ($filename, &$found) {
+                    if ($f['filename'] === $filename) {
+                        $found = true;
+                        return false;
+                    }
+                    return true;
+                }));
+
+                if (!$found) return false;
+
+                // Delete physical file
+                $filepath = UPLOADS_DIR . $filename;
+                if (file_exists($filepath)) unlink($filepath);
+
+                // Update totals and re-order
+                $model['filesize'] = array_sum(array_column($model['files'], 'filesize'));
+                $model['file_count'] = count($model['files']);
+                $model['filename'] = $model['files'][0]['filename'] ?? '';
+                foreach ($model['files'] as $i => &$f) {
+                    $f['file_order'] = $i;
+                }
+                $model['updated_at'] = date('Y-m-d H:i:s');
+
+                return writeJsonFile(MODELS_FILE, $models);
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Add a photo to an existing model (JSON storage)
+     */
+    function addModelPhoto(string $modelId, string $filename): bool {
+        $models = getModels();
+        foreach ($models as &$model) {
+            if ($model['id'] === $modelId) {
+                if (!isset($model['photos'])) {
+                    $model['photos'] = [];
+                }
+
+                $model['photos'][] = $filename;
+
+                // Update primary photo if this is the first
+                if (count($model['photos']) === 1) {
+                    $model['photo'] = $filename;
+                }
+
+                $model['updated_at'] = date('Y-m-d H:i:s');
+
+                return writeJsonFile(MODELS_FILE, $models);
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Remove a photo from a model (JSON storage)
+     */
+    function removeModelPhoto(string $modelId, string $filename): bool {
+        $models = getModels();
+        foreach ($models as &$model) {
+            if ($model['id'] === $modelId) {
+                if (!isset($model['photos'])) return false;
+
+                // Find and remove the photo
+                $found = false;
+                $model['photos'] = array_values(array_filter($model['photos'], function($p) use ($filename, &$found) {
+                    if ($p === $filename) {
+                        $found = true;
+                        return false;
+                    }
+                    return true;
+                }));
+
+                if (!$found) return false;
+
+                // Delete physical file
+                $filepath = UPLOADS_DIR . $filename;
+                if (file_exists($filepath)) unlink($filepath);
+
+                // Update primary photo
+                $model['photo'] = $model['photos'][0] ?? null;
+                $model['updated_at'] = date('Y-m-d H:i:s');
+
+                return writeJsonFile(MODELS_FILE, $models);
+            }
         }
         return false;
     }
