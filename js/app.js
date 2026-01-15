@@ -559,6 +559,16 @@ class ThumbnailViewer {
     constructor(container, url) {
         this.container = container;
         this.url = url;
+
+        // Prevent double initialization - check both attribute and actual content
+        if (this.container.dataset.initialized === 'true' || this.container.querySelector('canvas')) {
+            console.warn('ThumbnailViewer already initialized for', url);
+            return;
+        }
+
+        // Mark as initialized immediately to prevent race conditions
+        this.container.dataset.initialized = 'true';
+
         this.init();
     }
 
