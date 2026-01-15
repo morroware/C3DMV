@@ -6,11 +6,20 @@
 require_once __DIR__ . '/includes/config.php';
 require_once __DIR__ . '/includes/db.php';
 
-$categories = getCategories();
-$recentModels = searchModels('', null, 'newest');
-$recentModels = array_slice($recentModels, 0, 8);
+// Pagination for recent models
+$page = max(1, intval($_GET['page'] ?? 1));
+$limit = 12;
 
-// Get trending/popular models (most downloads in recent models)
+$categories = getCategories();
+
+// Get all recent models for pagination
+$allRecentModels = searchModels('', null, 'newest');
+$totalModels = count($allRecentModels);
+$totalPages = ceil($totalModels / $limit);
+$offset = ($page - 1) * $limit;
+$recentModels = array_slice($allRecentModels, $offset, $limit);
+
+// Get trending/popular models (most downloads, always show top 4)
 $trendingModels = searchModels('', null, 'popular');
 $trendingModels = array_slice($trendingModels, 0, 4);
 
@@ -323,13 +332,32 @@ foreach ($trendingModels as $index => $model) {
                     <?php endforeach; ?>
                 </div>
 
-                <!-- Load More Button -->
-                <div class="load-more-container" id="load-more-container">
-                    <button id="load-more-btn" class="btn btn-secondary btn-lg">
-                        <i class="fas fa-plus"></i> Load More Models
-                    </button>
-                    <div id="load-more-spinner" class="loading-spinner" style="display: none;"></div>
-                </div>
+                <!-- Pagination -->
+                <?php if ($totalPages > 1): ?>
+                    <div class="pagination">
+                        <?php if ($page > 1): ?>
+                            <a href="?page=<?= $page - 1 ?>" class="pagination-btn">
+                                <i class="fas fa-chevron-left"></i> Previous
+                            </a>
+                        <?php endif; ?>
+
+                        <div class="pagination-numbers">
+                            <?php for ($i = max(1, $page - 2); $i <= min($totalPages, $page + 2); $i++): ?>
+                                <?php if ($i === $page): ?>
+                                    <span class="pagination-number active"><?= $i ?></span>
+                                <?php else: ?>
+                                    <a href="?page=<?= $i ?>" class="pagination-number"><?= $i ?></a>
+                                <?php endif; ?>
+                            <?php endfor; ?>
+                        </div>
+
+                        <?php if ($page < $totalPages): ?>
+                            <a href="?page=<?= $page + 1 ?>" class="pagination-btn">
+                                Next <i class="fas fa-chevron-right"></i>
+                            </a>
+                        <?php endif; ?>
+                    </div>
+                <?php endif; ?>
             <?php endif; ?>
         </section>
     </div>
@@ -356,86 +384,5 @@ foreach ($trendingModels as $index => $model) {
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/OBJLoader.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
     <script src="js/app.js"></script>
-    <script>
-        // Load More functionality for Recent Models
-        document.addEventListener('DOMContentLoaded', function() {
-            const grid = document.getElementById('recent-models-grid');
-            const loadMoreBtn = document.getElementById('load-more-btn');
-            const loadMoreSpinner = document.getElementById('load-more-spinner');
-            const loadMoreContainer = document.getElementById('load-more-container');
-
-            if (!grid || !loadMoreBtn) return;
-
-            let currentPage = 1;
-            const limit = 8;
-            let loading = false;
-            let hasMore = true;
-
-            loadMoreBtn.addEventListener('click', async function() {
-                if (loading || !hasMore) return;
-
-                loading = true;
-                loadMoreBtn.style.display = 'none';
-                loadMoreSpinner.style.display = 'block';
-
-                try {
-                    const response = await API.request('get_models', {
-                        sort: 'newest',
-                        page: currentPage + 1,
-                        limit: limit
-                    });
-
-                    if (response.success && response.models && response.models.length > 0) {
-                        response.models.forEach(model => {
-                            renderModelCard(model, grid);
-                        });
-
-                        currentPage++;
-
-                        // Initialize new thumbnail viewers
-                        grid.querySelectorAll('[data-model-thumb]').forEach(container => {
-                            const url = container.dataset.modelThumb;
-                            if (url && !container.dataset.viewerInitialized) {
-                                new ThumbnailViewer(container, url);
-                            }
-                        });
-
-                        // Check if there are more
-                        if (response.pagination) {
-                            hasMore = currentPage < response.pagination.total_pages;
-                        } else {
-                            hasMore = response.models.length === limit;
-                        }
-
-                        if (!hasMore) {
-                            loadMoreContainer.innerHTML = `
-                                <div class="infinite-scroll-end">
-                                    <i class="fas fa-check-circle"></i>
-                                    <span>All models loaded</span>
-                                </div>
-                            `;
-                        }
-                    } else {
-                        hasMore = false;
-                        loadMoreContainer.innerHTML = `
-                            <div class="infinite-scroll-end">
-                                <i class="fas fa-check-circle"></i>
-                                <span>All models loaded</span>
-                            </div>
-                        `;
-                    }
-                } catch (error) {
-                    console.error('Load more error:', error);
-                    Toast.error('Failed to load more models');
-                } finally {
-                    loading = false;
-                    if (hasMore) {
-                        loadMoreBtn.style.display = 'inline-flex';
-                    }
-                    loadMoreSpinner.style.display = 'none';
-                }
-            });
-        });
-    </script>
 </body>
 </html>
