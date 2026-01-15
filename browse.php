@@ -242,8 +242,9 @@ if ($query) {
                 <?php if ($totalPages > 1): ?>
                     <div class="pagination">
                         <?php if ($page > 1): ?>
-                            <a href="?<?= http_build_query(array_merge($_GET, ['page' => $page - 1])) ?>" class="pagination-btn">
-                                <i class="fas fa-chevron-left"></i> Previous
+                            <a href="?<?= http_build_query(array_merge($_GET, ['page' => $page - 1])) ?>" class="pagination-btn" aria-label="Previous page">
+                                <i class="fas fa-arrow-left" aria-hidden="true"></i>
+                                <span class="sr-only">Previous</span>
                             </a>
                         <?php endif; ?>
 
@@ -258,8 +259,9 @@ if ($query) {
                         </div>
 
                         <?php if ($page < $totalPages): ?>
-                            <a href="?<?= http_build_query(array_merge($_GET, ['page' => $page + 1])) ?>" class="pagination-btn">
-                                Next <i class="fas fa-chevron-right"></i>
+                            <a href="?<?= http_build_query(array_merge($_GET, ['page' => $page + 1])) ?>" class="pagination-btn" aria-label="Next page">
+                                <i class="fas fa-arrow-right" aria-hidden="true"></i>
+                                <span class="sr-only">Next</span>
                             </a>
                         <?php endif; ?>
                     </div>
