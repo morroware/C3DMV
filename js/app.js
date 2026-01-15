@@ -555,100 +555,7 @@ class STLViewer extends ModelViewer {
 // THUMBNAIL GENERATOR (Mini 3D Preview)
 // ============================================================================
 
-// Global registry to track active viewers and manage viewport-based loading
-const ThumbnailViewerRegistry = {
-    viewers: new Map(), // Map of container -> viewer instance
-    observers: new Map(), // Map of container -> IntersectionObserver
-    maxActiveViewers: 12, // Limit concurrent active viewers
-
-    observe(container, url) {
-        // Don't observe if already observing
-        if (this.observers.has(container)) {
-            return;
-        }
-
-        const observer = new IntersectionObserver(
-            (entries) => {
-                entries.forEach(entry => {
-                    if (entry.isIntersecting) {
-                        // Viewport - create viewer if not exists
-                        this.loadViewer(container, url);
-                    } else {
-                        // Out of viewport - unload viewer to free resources
-                        this.unloadViewer(container);
-                    }
-                });
-            },
-            {
-                root: null,
-                rootMargin: '200px', // Start loading before fully visible
-                threshold: 0
-            }
-        );
-
-        observer.observe(container);
-        this.observers.set(container, observer);
-    },
-
-    loadViewer(container, url) {
-        // Already has a viewer
-        if (this.viewers.has(container)) {
-            return;
-        }
-
-        // Enforce viewer limit by removing oldest
-        if (this.viewers.size >= this.maxActiveViewers) {
-            const oldestContainer = this.viewers.keys().next().value;
-            this.unloadViewer(oldestContainer);
-        }
-
-        // Create new viewer
-        const viewer = new ThumbnailViewerInternal(container, url);
-        this.viewers.set(container, viewer);
-    },
-
-    unloadViewer(container) {
-        const viewer = this.viewers.get(container);
-        if (viewer && viewer.dispose) {
-            viewer.dispose();
-            this.viewers.delete(container);
-        }
-    },
-
-    unobserve(container) {
-        const observer = this.observers.get(container);
-        if (observer) {
-            observer.disconnect();
-            this.observers.delete(container);
-        }
-        this.unloadViewer(container);
-    }
-};
-
-// Public API - Sets up lazy loading for thumbnail
 class ThumbnailViewer {
-    constructor(container, url) {
-        // Prevent double initialization
-        if (container.dataset.lazyViewerInitialized === 'true') {
-            return;
-        }
-
-        container.dataset.lazyViewerInitialized = 'true';
-
-        // Show placeholder initially
-        container.innerHTML = `
-            <div class="model-placeholder">
-                <i class="fas fa-cube"></i>
-            </div>
-        `;
-
-        // Set up viewport-based lazy loading
-        ThumbnailViewerRegistry.observe(container, url);
-    }
-}
-
-// Internal class that does the actual 3D rendering
-class ThumbnailViewerInternal {
     constructor(container, url) {
         this.container = container;
         this.url = url;
@@ -660,6 +567,12 @@ class ThumbnailViewerInternal {
         this.mesh = null;
         this.model = null;
 
+        // Prevent double initialization
+        if (container.dataset.viewerInitialized === 'true') {
+            return;
+        }
+
+        container.dataset.viewerInitialized = 'true';
         this.init();
     }
 
@@ -1299,7 +1212,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // Initialize thumbnail viewers with lazy loading
+    // Initialize thumbnail viewers (simple approach)
     document.querySelectorAll('[data-stl-thumb], [data-model-thumb]').forEach(container => {
         const url = container.dataset.stlThumb || container.dataset.modelThumb;
         if (url) {
@@ -1474,10 +1387,10 @@ class InfiniteScroll {
     }
 
     initNewThumbnails() {
-        // Initialize any new thumbnail viewers with lazy loading
+        // Initialize any new thumbnail viewers
         this.options.container.querySelectorAll('[data-model-thumb]').forEach(container => {
             const url = container.dataset.modelThumb;
-            if (url && !container.dataset.lazyViewerInitialized) {
+            if (url && !container.dataset.viewerInitialized) {
                 new ThumbnailViewer(container, url);
             }
         });

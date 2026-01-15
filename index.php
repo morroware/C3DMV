@@ -392,10 +392,10 @@ foreach ($trendingModels as $index => $model) {
 
                         currentPage++;
 
-                        // Initialize new thumbnail viewers with lazy loading
+                        // Initialize new thumbnail viewers
                         grid.querySelectorAll('[data-model-thumb]').forEach(container => {
                             const url = container.dataset.modelThumb;
-                            if (url && grid.contains(container) && !container.dataset.lazyViewerInitialized) {
+                            if (url && !container.dataset.viewerInitialized) {
                                 new ThumbnailViewer(container, url);
                             }
                         });
