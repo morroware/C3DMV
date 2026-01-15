@@ -558,11 +558,21 @@ class STLViewer extends ModelViewer {
 // Global registry to track active viewers and prevent WebGL context exhaustion
 const ThumbnailViewerRegistry = {
     viewers: [],
-    maxViewers: 12, // Safe limit below browser's ~16 context limit
+    viewersByUrl: new Map(), // Track viewers by URL to prevent duplicates
+    maxViewers: 16, // Increased limit - we'll prevent duplicates instead
 
     register(viewer) {
+        // Don't register if we already have a viewer for this URL
+        if (this.viewersByUrl.has(viewer.url)) {
+            console.warn('Skipping duplicate viewer for:', viewer.url);
+            viewer.disposed = true; // Mark as disposed so it doesn't initialize
+            return false;
+        }
+
         this.viewers.push(viewer);
+        this.viewersByUrl.set(viewer.url, viewer);
         this.enforceLimit();
+        return true;
     },
 
     unregister(viewer) {
@@ -570,6 +580,7 @@ const ThumbnailViewerRegistry = {
         if (index > -1) {
             this.viewers.splice(index, 1);
         }
+        this.viewersByUrl.delete(viewer.url);
     },
 
     enforceLimit() {
@@ -580,6 +591,10 @@ const ThumbnailViewerRegistry = {
                 oldestViewer.dispose();
             }
         }
+    },
+
+    hasViewerForUrl(url) {
+        return this.viewersByUrl.has(url);
     }
 };
 
@@ -603,14 +618,26 @@ class ThumbnailViewer {
             return;
         }
 
+        // Check if we already have a viewer for this URL globally
+        if (ThumbnailViewerRegistry.hasViewerForUrl(url)) {
+            console.warn('Viewer already exists for URL:', url, '- showing placeholder instead');
+            this.showPlaceholderStatic();
+            this.container.dataset.initialized = 'true';
+            return;
+        }
+
         // Mark as initialized immediately to prevent race conditions
         this.container.dataset.initialized = 'true';
         this.container._thumbnailViewer = this;
 
-        this.init();
+        // Register this viewer in the global registry BEFORE init
+        // If registration fails (duplicate), skip initialization
+        if (!ThumbnailViewerRegistry.register(this)) {
+            this.showPlaceholderStatic();
+            return;
+        }
 
-        // Register this viewer in the global registry
-        ThumbnailViewerRegistry.register(this);
+        this.init();
     }
 
     init() {
@@ -659,6 +686,20 @@ class ThumbnailViewer {
         // Show a styled placeholder when model fails to load
         // Only if there isn't already a canvas (working viewer)
         if (!this.container.querySelector('canvas')) {
+            this.container.innerHTML = `
+                <div class="model-placeholder">
+                    <i class="fas fa-cube"></i>
+                    <span class="placeholder-format">${this.getFileExtension(this.url).toUpperCase()}</span>
+                </div>
+            `;
+            this.container.classList.add('placeholder-active');
+        }
+    }
+
+    showPlaceholderStatic() {
+        // Show a static placeholder without creating a WebGL context
+        // Used for duplicate models to save resources
+        if (this.container) {
             this.container.innerHTML = `
                 <div class="model-placeholder">
                     <i class="fas fa-cube"></i>
