@@ -555,50 +555,100 @@ class STLViewer extends ModelViewer {
 // THUMBNAIL GENERATOR (Mini 3D Preview)
 // ============================================================================
 
-// Global registry to track active viewers and prevent WebGL context exhaustion
+// Global registry to track active viewers and manage viewport-based loading
 const ThumbnailViewerRegistry = {
-    viewers: [],
-    viewersByUrl: new Map(), // Track viewers by URL to prevent duplicates
-    maxViewers: 16, // Increased limit - we'll prevent duplicates instead
+    viewers: new Map(), // Map of container -> viewer instance
+    observers: new Map(), // Map of container -> IntersectionObserver
+    maxActiveViewers: 12, // Limit concurrent active viewers
 
-    register(viewer) {
-        // Don't register if we already have a viewer for this URL
-        if (this.viewersByUrl.has(viewer.url)) {
-            console.warn('Skipping duplicate viewer for:', viewer.url);
-            viewer.disposed = true; // Mark as disposed so it doesn't initialize
-            return false;
+    observe(container, url) {
+        // Don't observe if already observing
+        if (this.observers.has(container)) {
+            return;
         }
 
-        this.viewers.push(viewer);
-        this.viewersByUrl.set(viewer.url, viewer);
-        this.enforceLimit();
-        return true;
-    },
-
-    unregister(viewer) {
-        const index = this.viewers.indexOf(viewer);
-        if (index > -1) {
-            this.viewers.splice(index, 1);
-        }
-        this.viewersByUrl.delete(viewer.url);
-    },
-
-    enforceLimit() {
-        while (this.viewers.length > this.maxViewers) {
-            const oldestViewer = this.viewers.shift();
-            if (oldestViewer && oldestViewer.dispose) {
-                console.log('Disposing oldest viewer to prevent WebGL context exhaustion');
-                oldestViewer.dispose();
+        const observer = new IntersectionObserver(
+            (entries) => {
+                entries.forEach(entry => {
+                    if (entry.isIntersecting) {
+                        // Viewport - create viewer if not exists
+                        this.loadViewer(container, url);
+                    } else {
+                        // Out of viewport - unload viewer to free resources
+                        this.unloadViewer(container);
+                    }
+                });
+            },
+            {
+                root: null,
+                rootMargin: '200px', // Start loading before fully visible
+                threshold: 0
             }
+        );
+
+        observer.observe(container);
+        this.observers.set(container, observer);
+    },
+
+    loadViewer(container, url) {
+        // Already has a viewer
+        if (this.viewers.has(container)) {
+            return;
+        }
+
+        // Enforce viewer limit by removing oldest
+        if (this.viewers.size >= this.maxActiveViewers) {
+            const oldestContainer = this.viewers.keys().next().value;
+            this.unloadViewer(oldestContainer);
+        }
+
+        // Create new viewer
+        const viewer = new ThumbnailViewerInternal(container, url);
+        this.viewers.set(container, viewer);
+    },
+
+    unloadViewer(container) {
+        const viewer = this.viewers.get(container);
+        if (viewer && viewer.dispose) {
+            viewer.dispose();
+            this.viewers.delete(container);
         }
     },
 
-    hasViewerForUrl(url) {
-        return this.viewersByUrl.has(url);
+    unobserve(container) {
+        const observer = this.observers.get(container);
+        if (observer) {
+            observer.disconnect();
+            this.observers.delete(container);
+        }
+        this.unloadViewer(container);
     }
 };
 
+// Public API - Sets up lazy loading for thumbnail
 class ThumbnailViewer {
+    constructor(container, url) {
+        // Prevent double initialization
+        if (container.dataset.lazyViewerInitialized === 'true') {
+            return;
+        }
+
+        container.dataset.lazyViewerInitialized = 'true';
+
+        // Show placeholder initially
+        container.innerHTML = `
+            <div class="model-placeholder">
+                <i class="fas fa-cube"></i>
+            </div>
+        `;
+
+        // Set up viewport-based lazy loading
+        ThumbnailViewerRegistry.observe(container, url);
+    }
+}
+
+// Internal class that does the actual 3D rendering
+class ThumbnailViewerInternal {
     constructor(container, url) {
         this.container = container;
         this.url = url;
@@ -610,33 +660,6 @@ class ThumbnailViewer {
         this.mesh = null;
         this.model = null;
 
-        // Prevent double initialization - check multiple indicators
-        if (this.container.dataset.initialized === 'true' ||
-            this.container.querySelector('canvas') ||
-            this.container._thumbnailViewer) {
-            console.warn('ThumbnailViewer already initialized for', url);
-            return;
-        }
-
-        // Check if we already have a viewer for this URL globally
-        if (ThumbnailViewerRegistry.hasViewerForUrl(url)) {
-            console.warn('Viewer already exists for URL:', url, '- showing placeholder instead');
-            this.showPlaceholderStatic();
-            this.container.dataset.initialized = 'true';
-            return;
-        }
-
-        // Mark as initialized immediately to prevent race conditions
-        this.container.dataset.initialized = 'true';
-        this.container._thumbnailViewer = this;
-
-        // Register this viewer in the global registry BEFORE init
-        // If registration fails (duplicate), skip initialization
-        if (!ThumbnailViewerRegistry.register(this)) {
-            this.showPlaceholderStatic();
-            return;
-        }
-
         this.init();
     }
 
@@ -644,7 +667,6 @@ class ThumbnailViewer {
         const width = this.container.clientWidth;
         const height = this.container.clientHeight;
 
-        console.log('ThumbnailViewer.init() called for:', this.url);
         this.container.innerHTML = '';
 
         // Scene
@@ -683,22 +705,7 @@ class ThumbnailViewer {
     }
 
     showPlaceholder() {
-        // Show a styled placeholder when model fails to load
-        // Only if there isn't already a canvas (working viewer)
-        if (!this.container.querySelector('canvas')) {
-            this.container.innerHTML = `
-                <div class="model-placeholder">
-                    <i class="fas fa-cube"></i>
-                    <span class="placeholder-format">${this.getFileExtension(this.url).toUpperCase()}</span>
-                </div>
-            `;
-            this.container.classList.add('placeholder-active');
-        }
-    }
-
-    showPlaceholderStatic() {
-        // Show a static placeholder without creating a WebGL context
-        // Used for duplicate models to save resources
+        // Show a styled placeholder when model fails to load or when unloaded
         if (this.container) {
             this.container.innerHTML = `
                 <div class="model-placeholder">
@@ -850,7 +857,7 @@ class ThumbnailViewer {
             this.scene.remove(this.model);
         }
 
-        // Dispose renderer
+        // Dispose renderer and free WebGL context
         if (this.renderer) {
             this.renderer.dispose();
             if (this.renderer.domElement && this.renderer.domElement.parentNode) {
@@ -858,26 +865,15 @@ class ThumbnailViewer {
             }
         }
 
-        // Clear references
+        // Clear references for garbage collection
         this.scene = null;
         this.camera = null;
         this.renderer = null;
         this.mesh = null;
         this.model = null;
 
-        // Show static placeholder
-        if (this.container) {
-            this.container.innerHTML = `
-                <div class="model-placeholder">
-                    <i class="fas fa-cube"></i>
-                    <span class="placeholder-format">${this.getFileExtension(this.url).toUpperCase()}</span>
-                </div>
-            `;
-            this.container.classList.add('placeholder-active');
-        }
-
-        // Unregister from registry
-        ThumbnailViewerRegistry.unregister(this);
+        // Show placeholder so it can be reloaded when scrolled back into view
+        this.showPlaceholder();
     }
 }
 
@@ -1303,12 +1299,11 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // Initialize thumbnail viewers
+    // Initialize thumbnail viewers with lazy loading
     document.querySelectorAll('[data-stl-thumb], [data-model-thumb]').forEach(container => {
         const url = container.dataset.stlThumb || container.dataset.modelThumb;
         if (url) {
             new ThumbnailViewer(container, url);
-            // Note: data-initialized is already set inside ThumbnailViewer constructor
         }
     });
 
@@ -1479,12 +1474,11 @@ class InfiniteScroll {
     }
 
     initNewThumbnails() {
-        // Initialize any new thumbnail viewers that were added
-        this.options.container.querySelectorAll('[data-model-thumb]:not([data-initialized])').forEach(container => {
+        // Initialize any new thumbnail viewers with lazy loading
+        this.options.container.querySelectorAll('[data-model-thumb]').forEach(container => {
             const url = container.dataset.modelThumb;
-            if (url) {
+            if (url && !container.dataset.lazyViewerInitialized) {
                 new ThumbnailViewer(container, url);
-                container.dataset.initialized = 'true';
             }
         });
     }

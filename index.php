@@ -392,13 +392,11 @@ foreach ($trendingModels as $index => $model) {
 
                         currentPage++;
 
-                        // Initialize new thumbnail viewers (only within recent-models-grid)
-                        grid.querySelectorAll('[data-model-thumb]:not([data-initialized])').forEach(container => {
+                        // Initialize new thumbnail viewers with lazy loading
+                        grid.querySelectorAll('[data-model-thumb]').forEach(container => {
                             const url = container.dataset.modelThumb;
-                            // Double-check this container is actually in the recent models grid
-                            if (url && grid.contains(container)) {
+                            if (url && grid.contains(container) && !container.dataset.lazyViewerInitialized) {
                                 new ThumbnailViewer(container, url);
-                                // Note: data-initialized is already set inside ThumbnailViewer constructor
                             }
                         });
 
