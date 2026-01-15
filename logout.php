@@ -1,6 +1,6 @@
 <?php
 /**
- * Community 3D Model Vault - Logout
+ * Community 3D Model Vault - Logout Script
  */
 
 require_once __DIR__ . '/includes/config.php';
