@@ -160,10 +160,11 @@ function isCurrentUserApproved(): bool {
 }
 
 /**
- * Convert hex color to integer for Three.js
+ * Convert hex color to hex string for Three.js (without #, padded to 6 chars)
  */
-function hexToInt(string $hex): int {
-    return hexdec(ltrim($hex, '#'));
+function hexToInt(string $hex): string {
+    $hex = ltrim($hex, '#');
+    return str_pad($hex, 6, '0', STR_PAD_LEFT);
 }
 
 /**
@@ -171,11 +172,14 @@ function hexToInt(string $hex): int {
  * Call this in <script> tags to initialize window.VIEWER_SETTINGS
  */
 function getViewerSettingsJS(): string {
+    // Helper to convert PHP bool to JS bool
+    $bool = fn($val) => $val ? 'true' : 'false';
+
     // Get all viewer settings
     $backgroundColor = hexToInt(setting('viewer_background_color', '#0a0a0f'));
-    $enableShadows = setting('viewer_enable_shadows', true);
+    $enableShadows = $bool(setting('viewer_enable_shadows', true));
     $shadowQuality = setting('viewer_shadow_quality', 2048);
-    $enableFog = setting('viewer_enable_fog', false);
+    $enableFog = $bool(setting('viewer_enable_fog', false));
     $fogColor = hexToInt(setting('viewer_fog_color', '#000000'));
     $fogDensity = setting('viewer_fog_density', 0.0005);
     $toneMappingExposure = setting('viewer_tone_mapping_exposure', 1.2);
@@ -183,7 +187,7 @@ function getViewerSettingsJS(): string {
     // Lighting
     $ambientLightColor = hexToInt(setting('viewer_ambient_light_color', '#ffffff'));
     $ambientLightIntensity = setting('viewer_ambient_light_intensity', 0.6);
-    $hemisphereEnabled = setting('viewer_hemisphere_light_enabled', true);
+    $hemisphereEnabled = $bool(setting('viewer_hemisphere_light_enabled', true));
     $hemisphereSkyColor = hexToInt(setting('viewer_hemisphere_sky_color', '#00f0ff'));
     $hemisphereGroundColor = hexToInt(setting('viewer_hemisphere_ground_color', '#ff00aa'));
     $hemisphereIntensity = setting('viewer_hemisphere_intensity', 0.3);
@@ -194,10 +198,10 @@ function getViewerSettingsJS(): string {
     $rimLightColor = hexToInt(setting('viewer_rim_light_color', '#ff00aa'));
     $rimLightIntensity = setting('viewer_rim_light_intensity', 0.3);
     $topLightIntensity = setting('viewer_top_light_intensity', 0.3);
-    $pointLight1Enabled = setting('viewer_point_light_1_enabled', true);
+    $pointLight1Enabled = $bool(setting('viewer_point_light_1_enabled', true));
     $pointLight1Color = hexToInt(setting('viewer_point_light_1_color', '#00f0ff'));
     $pointLight1Intensity = setting('viewer_point_light_1_intensity', 0.5);
-    $pointLight2Enabled = setting('viewer_point_light_2_enabled', true);
+    $pointLight2Enabled = $bool(setting('viewer_point_light_2_enabled', true));
     $pointLight2Color = hexToInt(setting('viewer_point_light_2_color', '#ff00aa'));
     $pointLight2Intensity = setting('viewer_point_light_2_intensity', 0.3);
 
@@ -212,9 +216,9 @@ function getViewerSettingsJS(): string {
 
     // Legacy settings
     $defaultColor = setting('default_model_color', '#00ffff');
-    $autoRotate = setting('enable_auto_rotate', false) ? 'true' : 'false';
-    $showWireframeToggle = setting('enable_wireframe_toggle', true) ? 'true' : 'false';
-    $showGrid = setting('enable_grid', true) ? 'true' : 'false';
+    $autoRotate = $bool(setting('enable_auto_rotate', false));
+    $showWireframeToggle = $bool(setting('enable_wireframe_toggle', true));
+    $showGrid = $bool(setting('enable_grid', true));
 
     return <<<JS
 window.VIEWER_SETTINGS = {
