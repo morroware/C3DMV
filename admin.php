@@ -815,9 +815,13 @@ $faIcons = [
                                         <tr style="<?= !$isValid ? 'opacity: 0.6;' : '' ?>">
                                             <td>
                                                 <code class="invite-code" style="font-family: monospace; font-size: 1.1rem; color: var(--neon-cyan); cursor: pointer;"
-                                                      onclick="copyToClipboard('<?= $invite['code'] ?>')" title="Click to copy">
+                                                      onclick="copyToClipboard('<?= $invite['code'] ?>')" title="Click to copy code">
                                                     <?= $invite['code'] ?>
                                                 </code>
+                                                <button type="button" class="btn btn-outline btn-sm" style="margin-left: 8px; padding: 4px 8px;"
+                                                        onclick="copyInviteLink('<?= $invite['code'] ?>')" title="Copy registration link">
+                                                    <i class="fas fa-link"></i>
+                                                </button>
                                             </td>
                                             <td>
                                                 <?= $invite['uses'] ?> / <?= $invite['max_uses'] > 0 ? $invite['max_uses'] : '∞' ?>
@@ -1141,6 +1145,24 @@ $faIcons = [
                 document.execCommand('copy');
                 document.body.removeChild(textarea);
                 Toast.success('Invite code copied to clipboard!');
+            });
+        }
+
+        // Copy invite link with code
+        function copyInviteLink(code) {
+            const baseUrl = window.location.origin + window.location.pathname.replace('admin.php', 'login.php');
+            const inviteUrl = baseUrl + '?register=1&code=' + code;
+            navigator.clipboard.writeText(inviteUrl).then(() => {
+                Toast.success('Invite link copied! Share it with your invitee.');
+            }).catch(() => {
+                // Fallback
+                const textarea = document.createElement('textarea');
+                textarea.value = inviteUrl;
+                document.body.appendChild(textarea);
+                textarea.select();
+                document.execCommand('copy');
+                document.body.removeChild(textarea);
+                Toast.success('Invite link copied! Share it with your invitee.');
             });
         }
 
