@@ -347,6 +347,65 @@ foreach ($relatedModels as $index => $rm) {
                             </div>
                         </div>
                     <?php endif; ?>
+
+                    <!-- Print Profiles Section -->
+                    <div class="card" style="margin-top: 24px; padding: 24px;" id="print-profiles-section">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                            <h3 style="margin: 0;"><i class="fas fa-sliders-h"></i> Print Profiles</h3>
+                            <?php if (isLoggedIn()): ?>
+                            <button class="btn btn-primary btn-sm" onclick="openUploadProfileModal()">
+                                <i class="fas fa-upload"></i> Upload Profile
+                            </button>
+                            <?php endif; ?>
+                        </div>
+
+                        <!-- Profile Filters -->
+                        <div class="profile-filters" style="display: flex; gap: 12px; margin-bottom: 16px; flex-wrap: wrap;">
+                            <select id="profile-sort" class="form-select" style="flex: 1; min-width: 150px;" onchange="loadProfiles()">
+                                <option value="newest">Newest First</option>
+                                <option value="rating">Highest Rated</option>
+                                <option value="downloads">Most Downloads</option>
+                            </select>
+                            <select id="profile-printer-filter" class="form-select" style="flex: 1; min-width: 150px;" onchange="loadProfiles()">
+                                <option value="">All Printers</option>
+                            </select>
+                            <select id="profile-material-filter" class="form-select" style="flex: 1; min-width: 150px;" onchange="loadProfiles()">
+                                <option value="">All Materials</option>
+                                <option value="PLA">PLA</option>
+                                <option value="PETG">PETG</option>
+                                <option value="ABS">ABS</option>
+                                <option value="TPU">TPU</option>
+                                <option value="ASA">ASA</option>
+                            </select>
+                            <label style="display: flex; align-items: center; gap: 6px; white-space: nowrap;">
+                                <input type="checkbox" id="profile-verified-only" onchange="loadProfiles()">
+                                <span>Verified Only</span>
+                            </label>
+                        </div>
+
+                        <!-- Profiles List -->
+                        <div id="profiles-list" class="profiles-list">
+                            <div class="loading-spinner" style="text-align: center; padding: 40px;">
+                                <i class="fas fa-spinner fa-spin fa-2x"></i>
+                                <p style="margin-top: 12px; color: var(--text-muted);">Loading profiles...</p>
+                            </div>
+                        </div>
+
+                        <!-- Empty State -->
+                        <div id="profiles-empty" class="empty-state" style="display: none; text-align: center; padding: 40px;">
+                            <i class="fas fa-layer-group fa-3x" style="color: var(--text-muted); margin-bottom: 16px;"></i>
+                            <p style="color: var(--text-muted); margin-bottom: 16px;">No print profiles available for this model yet.</p>
+                            <?php if (isLoggedIn()): ?>
+                            <button class="btn btn-primary" onclick="openUploadProfileModal()">
+                                <i class="fas fa-upload"></i> Be the first to upload a profile
+                            </button>
+                            <?php else: ?>
+                            <a href="login.php" class="btn btn-primary">
+                                <i class="fas fa-sign-in-alt"></i> Sign in to upload a profile
+                            </a>
+                            <?php endif; ?>
+                        </div>
+                    </div>
                 </div>
 
                 <!-- Info Sidebar -->
@@ -761,6 +820,251 @@ foreach ($relatedModels as $index => $rm) {
         .edit-tab-content { max-height: 60vh; overflow-y: auto; }
     </style>
     <?php endif; ?>
+
+    <!-- Print Profiles Styles -->
+    <style>
+        .profiles-list {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .profile-card {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 20px;
+            transition: border-color 0.2s, transform 0.2s;
+        }
+
+        .profile-card:hover {
+            border-color: var(--neon-cyan);
+            transform: translateY(-2px);
+        }
+
+        .profile-card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 12px;
+        }
+
+        .profile-card-title {
+            margin: 0 0 4px 0;
+            font-size: 1.1rem;
+            color: var(--text-primary);
+        }
+
+        .profile-card-meta {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+        }
+
+        .profile-card-meta a {
+            color: var(--neon-cyan);
+            text-decoration: none;
+        }
+
+        .profile-card-meta a:hover {
+            text-decoration: underline;
+        }
+
+        .profile-card-badges {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .profile-badge {
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .profile-badge.verified {
+            background: rgba(0, 255, 136, 0.1);
+            color: var(--neon-green);
+            border: 1px solid var(--neon-green);
+        }
+
+        .profile-badge.featured {
+            background: rgba(255, 215, 0, 0.1);
+            color: #ffd700;
+            border: 1px solid #ffd700;
+        }
+
+        .profile-card-description {
+            color: var(--text-secondary);
+            margin: 12px 0;
+            line-height: 1.5;
+        }
+
+        .profile-card-specs {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            margin: 12px 0;
+            padding: 12px 0;
+            border-top: 1px solid var(--border-color);
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .profile-spec {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+        }
+
+        .profile-spec i {
+            color: var(--neon-cyan);
+            width: 16px;
+        }
+
+        .profile-card-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: 12px;
+            margin: 12px 0;
+        }
+
+        .profile-stat {
+            text-align: center;
+        }
+
+        .profile-stat-label {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            margin-bottom: 4px;
+        }
+
+        .profile-stat-value {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 4px;
+        }
+
+        .profile-stat-count {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            font-weight: 400;
+        }
+
+        .star-filled {
+            color: #ffd700;
+        }
+
+        .star-empty {
+            color: var(--text-muted);
+        }
+
+        .profile-card-actions {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            margin-top: 12px;
+        }
+
+        .profile-card-actions .btn {
+            flex: 1;
+            min-width: 120px;
+        }
+
+        @media (max-width: 768px) {
+            .profile-card-actions {
+                flex-direction: column;
+            }
+
+            .profile-card-actions .btn {
+                width: 100%;
+            }
+
+            .profile-card-stats {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+    </style>
+
+    <!-- Upload Profile Modal -->
+    <div class="modal-overlay" id="upload-profile-modal">
+        <div class="modal" style="max-width: 600px;">
+            <div class="modal-header">
+                <h3><i class="fas fa-upload"></i> Upload Print Profile</h3>
+                <button class="modal-close"><i class="fas fa-times"></i></button>
+            </div>
+
+            <form onsubmit="uploadProfile(event)">
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label class="form-label required">Profile File (.3mf)</label>
+                        <input type="file" name="profile_file" accept=".3mf" class="form-input" required>
+                        <div class="form-hint">Upload your sliced .3mf file with print settings</div>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label required">Profile Name</label>
+                        <input type="text" name="name" class="form-input" placeholder="e.g., High Quality - 0.2mm" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label">Description</label>
+                        <textarea name="description" class="form-textarea" rows="3" placeholder="Describe the profile settings and use cases..."></textarea>
+                    </div>
+
+                    <div class="form-row" style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                        <div class="form-group">
+                            <label class="form-label">Printer</label>
+                            <select name="printer_id" id="upload-profile-printer" class="form-select">
+                                <option value="">Select Printer (Optional)</option>
+                            </select>
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label">Filament</label>
+                            <select name="filament_id" id="upload-profile-filament" class="form-select">
+                                <option value="">Select Filament (Optional)</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label">Compatible Materials (JSON Array)</label>
+                        <input type="text" name="compatible_materials" class="form-input" placeholder='["PLA", "PETG"]'>
+                        <div class="form-hint">Enter material types as JSON array, e.g., ["PLA", "PETG"]</div>
+                    </div>
+
+                    <div class="form-row" style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                        <div class="form-group">
+                            <label class="form-label">Print Time (minutes)</label>
+                            <input type="number" name="print_time" class="form-input" placeholder="120">
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label">Material Used (grams)</label>
+                            <input type="number" name="material_used" class="form-input" placeholder="50">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" onclick="Modal.hide('upload-profile-modal')">Cancel</button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-upload"></i> Upload Profile
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
 
     <!-- Footer -->
     <footer class="footer">
@@ -1418,6 +1722,292 @@ foreach ($relatedModels as $index => $rm) {
             }
 
             e.target.value = '';
+        });
+
+        // =================================================================
+        // PRINT PROFILES
+        // =================================================================
+
+        let allPrinters = [];
+        let allFilaments = [];
+        const modelId = '<?= $modelId ?>';
+
+        // Load printers and filaments for filters
+        async function loadPrintersAndFilaments() {
+            try {
+                const [printersRes, filamentsRes] = await Promise.all([
+                    fetch('api.php?action=get_printers'),
+                    fetch('api.php?action=get_filaments')
+                ]);
+
+                const printersData = await printersRes.json();
+                const filamentsData = await filamentsRes.json();
+
+                if (printersData.success) {
+                    allPrinters = printersData.printers;
+                    const printerSelect = document.getElementById('profile-printer-filter');
+                    printerSelect.innerHTML = '<option value="">All Printers</option>';
+                    allPrinters.forEach(printer => {
+                        const option = document.createElement('option');
+                        option.value = printer.id;
+                        option.textContent = `${printer.manufacturer} ${printer.name}`;
+                        printerSelect.appendChild(option);
+                    });
+                }
+
+                if (filamentsData.success) {
+                    allFilaments = filamentsData.filaments;
+                }
+            } catch (err) {
+                console.error('Failed to load printers/filaments:', err);
+            }
+        }
+
+        // Load print profiles
+        async function loadProfiles() {
+            const sort = document.getElementById('profile-sort').value;
+            const printerId = document.getElementById('profile-printer-filter').value;
+            const materialType = document.getElementById('profile-material-filter').value;
+            const verifiedOnly = document.getElementById('profile-verified-only').checked;
+
+            const params = new URLSearchParams({
+                action: 'get_profiles',
+                model_id: modelId,
+                sort: sort
+            });
+
+            if (printerId) params.append('printer_id', printerId);
+            if (materialType) params.append('material_type', materialType);
+            if (verifiedOnly) params.append('verified', '1');
+
+            const profilesList = document.getElementById('profiles-list');
+            const emptyState = document.getElementById('profiles-empty');
+
+            try {
+                const response = await fetch(`api.php?${params}`);
+                const result = await response.json();
+
+                if (result.success && result.profiles.length > 0) {
+                    profilesList.innerHTML = result.profiles.map(profile => renderProfileCard(profile)).join('');
+                    profilesList.style.display = 'block';
+                    emptyState.style.display = 'none';
+                } else {
+                    profilesList.style.display = 'none';
+                    emptyState.style.display = 'block';
+                }
+            } catch (err) {
+                console.error('Failed to load profiles:', err);
+                Toast.error('Failed to load profiles');
+            }
+        }
+
+        // Render a profile card
+        function renderProfileCard(profile) {
+            const successRate = profile.successful_prints + profile.failed_prints > 0
+                ? Math.round((profile.successful_prints / (profile.successful_prints + profile.failed_prints)) * 100)
+                : null;
+
+            const stars = renderStars(profile.quality_rating);
+            const verified = profile.verified ? '<span class="profile-badge verified"><i class="fas fa-check-circle"></i> Verified</span>' : '';
+            const featured = profile.featured ? '<span class="profile-badge featured"><i class="fas fa-star"></i> Featured</span>' : '';
+
+            return `
+                <div class="profile-card">
+                    <div class="profile-card-header">
+                        <div>
+                            <h4 class="profile-card-title">${sanitizeHtml(profile.name)}</h4>
+                            <div class="profile-card-meta">
+                                by <a href="profile.php?id=${profile.user_id}">${sanitizeHtml(profile.creator_username)}</a>
+                                · ${timeAgo(profile.created_at)}
+                            </div>
+                        </div>
+                        <div class="profile-card-badges">
+                            ${verified}
+                            ${featured}
+                        </div>
+                    </div>
+
+                    ${profile.description ? `<p class="profile-card-description">${sanitizeHtml(profile.description)}</p>` : ''}
+
+                    <div class="profile-card-specs">
+                        ${profile.layer_height ? `<div class="profile-spec"><i class="fas fa-layer-group"></i> ${profile.layer_height}mm</div>` : ''}
+                        ${profile.infill_percentage ? `<div class="profile-spec"><i class="fas fa-fill"></i> ${profile.infill_percentage}%</div>` : ''}
+                        ${profile.supports_required !== null ? `<div class="profile-spec"><i class="fas fa-hands-helping"></i> ${profile.supports_required ? 'Supports' : 'No Supports'}</div>` : ''}
+                        ${profile.printer_name ? `<div class="profile-spec"><i class="fas fa-print"></i> ${sanitizeHtml(profile.printer_name)}</div>` : ''}
+                        ${profile.filament_name ? `<div class="profile-spec"><i class="fas fa-fill-drip"></i> ${sanitizeHtml(profile.filament_name)}</div>` : ''}
+                    </div>
+
+                    <div class="profile-card-stats">
+                        <div class="profile-stat">
+                            <div class="profile-stat-label">Rating</div>
+                            <div class="profile-stat-value">
+                                ${stars}
+                                ${profile.rating_count > 0 ? `<span class="profile-stat-count">(${profile.rating_count})</span>` : '<span class="profile-stat-count">No ratings</span>'}
+                            </div>
+                        </div>
+                        ${successRate !== null ? `
+                        <div class="profile-stat">
+                            <div class="profile-stat-label">Success Rate</div>
+                            <div class="profile-stat-value">${successRate}%</div>
+                        </div>
+                        ` : ''}
+                        <div class="profile-stat">
+                            <div class="profile-stat-label">Downloads</div>
+                            <div class="profile-stat-value">${profile.downloads}</div>
+                        </div>
+                    </div>
+
+                    <div class="profile-card-actions">
+                        <button class="btn btn-primary" onclick="downloadProfile('${profile.id}')">
+                            <i class="fas fa-download"></i> Download .3mf
+                        </button>
+                        <button class="btn btn-secondary" onclick="viewProfileDetails('${profile.id}')">
+                            <i class="fas fa-info-circle"></i> Details
+                        </button>
+                        ${(<?= isLoggedIn() ? 'true' : 'false' ?>) ? `
+                        <button class="btn btn-outline" onclick="rateProfile('${profile.id}')">
+                            <i class="fas fa-star"></i> Rate
+                        </button>
+                        ` : ''}
+                    </div>
+                </div>
+            `;
+        }
+
+        // Render star rating
+        function renderStars(rating) {
+            const fullStars = Math.floor(rating);
+            const hasHalfStar = rating % 1 >= 0.5;
+            const emptyStars = 5 - fullStars - (hasHalfStar ? 1 : 0);
+
+            let html = '';
+            for (let i = 0; i < fullStars; i++) {
+                html += '<i class="fas fa-star star-filled"></i>';
+            }
+            if (hasHalfStar) {
+                html += '<i class="fas fa-star-half-alt star-filled"></i>';
+            }
+            for (let i = 0; i < emptyStars; i++) {
+                html += '<i class="far fa-star star-empty"></i>';
+            }
+            return html;
+        }
+
+        // Download profile
+        async function downloadProfile(profileId) {
+            window.location.href = `api.php?action=download_profile&id=${profileId}`;
+        }
+
+        // View profile details (modal)
+        async function viewProfileDetails(profileId) {
+            // TODO: Implement profile details modal
+            Toast.info('Profile details view coming soon!');
+        }
+
+        // Rate profile (modal)
+        async function rateProfile(profileId) {
+            // TODO: Implement rating modal
+            Toast.info('Rating functionality coming soon!');
+        }
+
+        // Open upload profile modal
+        function openUploadProfileModal() {
+            Modal.show('upload-profile-modal');
+            loadUploadModalData();
+        }
+
+        // Load data for upload modal
+        async function loadUploadModalData() {
+            const printerSelect = document.getElementById('upload-profile-printer');
+            const filamentSelect = document.getElementById('upload-profile-filament');
+
+            printerSelect.innerHTML = '<option value="">Select Printer (Optional)</option>';
+            allPrinters.forEach(printer => {
+                const option = document.createElement('option');
+                option.value = printer.id;
+                option.textContent = `${printer.manufacturer} ${printer.name}`;
+                printerSelect.appendChild(option);
+            });
+
+            filamentSelect.innerHTML = '<option value="">Select Filament (Optional)</option>';
+            allFilaments.forEach(filament => {
+                const option = document.createElement('option');
+                option.value = filament.id;
+                option.textContent = filament.name;
+                filamentSelect.appendChild(option);
+            });
+        }
+
+        // Upload profile
+        async function uploadProfile(event) {
+            event.preventDefault();
+
+            const form = event.target;
+            const formData = new FormData(form);
+            formData.append('action', 'upload_profile');
+            formData.append('model_id', modelId);
+
+            const submitBtn = form.querySelector('button[type="submit"]');
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Uploading...';
+
+            try {
+                const response = await fetch('api.php', { method: 'POST', body: formData });
+                const result = await response.json();
+
+                if (result.success) {
+                    Toast.success('Profile uploaded successfully!');
+                    Modal.hide('upload-profile-modal');
+                    form.reset();
+                    loadProfiles();
+                } else {
+                    Toast.error(result.error || 'Failed to upload profile');
+                }
+            } catch (err) {
+                console.error('Upload error:', err);
+                Toast.error('Failed to upload profile');
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = '<i class="fas fa-upload"></i> Upload Profile';
+            }
+        }
+
+        // Sanitize HTML
+        function sanitizeHtml(str) {
+            const div = document.createElement('div');
+            div.textContent = str;
+            return div.innerHTML;
+        }
+
+        // Time ago helper
+        function timeAgo(dateString) {
+            const date = new Date(dateString);
+            const now = new Date();
+            const seconds = Math.floor((now - date) / 1000);
+
+            const intervals = {
+                year: 31536000,
+                month: 2592000,
+                week: 604800,
+                day: 86400,
+                hour: 3600,
+                minute: 60
+            };
+
+            for (const [unit, secondsInUnit] of Object.entries(intervals)) {
+                const interval = Math.floor(seconds / secondsInUnit);
+                if (interval >= 1) {
+                    return interval === 1 ? `1 ${unit} ago` : `${interval} ${unit}s ago`;
+                }
+            }
+
+            return 'just now';
+        }
+
+        // Initialize profiles when page loads
+        document.addEventListener('DOMContentLoaded', async function() {
+            await loadPrintersAndFilaments();
+            await loadProfiles();
         });
     </script>
 </body>
