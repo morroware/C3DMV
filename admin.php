@@ -127,7 +127,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         // Checkboxes are only present when checked
                         $settingsToSave[$key] = isset($_POST[$key]);
                     } elseif ($config['type'] === 'number') {
-                        $settingsToSave[$key] = (int)($_POST[$key] ?? 0);
+                        // Handle both integer and decimal numbers
+                        $value = $_POST[$key] ?? 0;
+                        $settingsToSave[$key] = (isset($config['step']) && $config['step'] < 1) ? (float)$value : (int)$value;
                     } else {
                         if (isset($_POST[$key])) {
                             $settingsToSave[$key] = $_POST[$key];
@@ -653,9 +655,10 @@ $faIcons = [
                                                         <?php break;
                                                         case 'number': ?>
                                                             <input type="number" name="<?= $key ?>" id="<?= $key ?>"
-                                                                   class="form-input" value="<?= (int)$value ?>"
+                                                                   class="form-input" value="<?= $value ?>"
                                                                    <?= isset($config['min']) ? 'min="'.$config['min'].'"' : '' ?>
-                                                                   <?= isset($config['max']) ? 'max="'.$config['max'].'"' : '' ?>>
+                                                                   <?= isset($config['max']) ? 'max="'.$config['max'].'"' : '' ?>
+                                                                   <?= isset($config['step']) ? 'step="'.$config['step'].'"' : '' ?>>
                                                         <?php break;
                                                         case 'color': ?>
                                                             <input type="color" name="<?= $key ?>" id="<?= $key ?>"
