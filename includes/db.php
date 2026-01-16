@@ -1102,6 +1102,683 @@ if (USE_MYSQL) {
         return false;
     }
 
+    /**
+     * Printer Operations
+     */
+    function getPrinters(): array {
+        $conn = getDbConnection();
+        $result = $conn->query("SELECT * FROM printers ORDER BY manufacturer, name");
+
+        $printers = [];
+        while ($row = $result->fetch_assoc()) {
+            $printers[] = $row;
+        }
+
+        return $printers;
+    }
+
+    function getPrinter(string $id): ?array {
+        $conn = getDbConnection();
+        $stmt = $conn->prepare("SELECT * FROM printers WHERE id = ?");
+        $stmt->bind_param("s", $id);
+        $stmt->execute();
+        $result = $stmt->get_result();
+
+        return $result->fetch_assoc() ?: null;
+    }
+
+    function createPrinter(array $data): ?string {
+        $conn = getDbConnection();
+        $id = $data['id'] ?? generateId();
+
+        $stmt = $conn->prepare("INSERT INTO printers (id, name, manufacturer, build_volume_x, build_volume_y, build_volume_z, nozzle_diameter, description) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
+        $stmt->bind_param("sssiiiis",
+            $id,
+            $data['name'],
+            $data['manufacturer'],
+            $data['build_volume_x'],
+            $data['build_volume_y'],
+            $data['build_volume_z'],
+            $data['nozzle_diameter'],
+            $data['description']
+        );
+
+        return $stmt->execute() ? $id : null;
+    }
+
+    function updatePrinter(string $id, array $data): bool {
+        $conn = getDbConnection();
+        $updates = [];
+        $types = '';
+        $values = [];
+
+        $allowedFields = ['name', 'manufacturer', 'build_volume_x', 'build_volume_y', 'build_volume_z', 'nozzle_diameter', 'description'];
+
+        foreach ($allowedFields as $field) {
+            if (isset($data[$field])) {
+                $updates[] = "$field = ?";
+                if (in_array($field, ['build_volume_x', 'build_volume_y', 'build_volume_z'])) {
+                    $types .= 'i';
+                } elseif ($field === 'nozzle_diameter') {
+                    $types .= 'd';
+                } else {
+                    $types .= 's';
+                }
+                $values[] = $data[$field];
+            }
+        }
+
+        if (empty($updates)) {
+            return false;
+        }
+
+        $types .= 's';
+        $values[] = $id;
+
+        $sql = "UPDATE printers SET " . implode(', ', $updates) . " WHERE id = ?";
+        $stmt = $conn->prepare($sql);
+        $stmt->bind_param($types, ...$values);
+
+        return $stmt->execute();
+    }
+
+    function deletePrinter(string $id): bool {
+        $conn = getDbConnection();
+        $stmt = $conn->prepare("DELETE FROM printers WHERE id = ?");
+        $stmt->bind_param("s", $id);
+
+        return $stmt->execute();
+    }
+
+    /**
+     * Filament Operations
+     */
+    function getFilaments(): array {
+        $conn = getDbConnection();
+        $result = $conn->query("SELECT * FROM filaments ORDER BY material_type, manufacturer, name");
+
+        $filaments = [];
+        while ($row = $result->fetch_assoc()) {
+            $filaments[] = $row;
+        }
+
+        return $filaments;
+    }
+
+    function getFilament(string $id): ?array {
+        $conn = getDbConnection();
+        $stmt = $conn->prepare("SELECT * FROM filaments WHERE id = ?");
+        $stmt->bind_param("s", $id);
+        $stmt->execute();
+        $result = $stmt->get_result();
+
+        return $result->fetch_assoc() ?: null;
+    }
+
+    function createFilament(array $data): ?string {
+        $conn = getDbConnection();
+        $id = $data['id'] ?? generateId();
+
+        $stmt = $conn->prepare("INSERT INTO filaments (id, name, manufacturer, color, material_type, description) VALUES (?, ?, ?, ?, ?, ?)");
+        $stmt->bind_param("ssssss",
+            $id,
+            $data['name'],
+            $data['manufacturer'],
+            $data['color'],
+            $data['material_type'],
+            $data['description']
+        );
+
+        return $stmt->execute() ? $id : null;
+    }
+
+    function updateFilament(string $id, array $data): bool {
+        $conn = getDbConnection();
+        $updates = [];
+        $types = '';
+        $values = [];
+
+        $allowedFields = ['name', 'manufacturer', 'color', 'material_type', 'description'];
+
+        foreach ($allowedFields as $field) {
+            if (isset($data[$field])) {
+                $updates[] = "$field = ?";
+                $types .= 's';
+                $values[] = $data[$field];
+            }
+        }
+
+        if (empty($updates)) {
+            return false;
+        }
+
+        $types .= 's';
+        $values[] = $id;
+
+        $sql = "UPDATE filaments SET " . implode(', ', $updates) . " WHERE id = ?";
+        $stmt = $conn->prepare($sql);
+        $stmt->bind_param($types, ...$values);
+
+        return $stmt->execute();
+    }
+
+    function deleteFilament(string $id): bool {
+        $conn = getDbConnection();
+        $stmt = $conn->prepare("DELETE FROM filaments WHERE id = ?");
+        $stmt->bind_param("s", $id);
+
+        return $stmt->execute();
+    }
+
+    /**
+     * Print Profile Operations
+     */
+    function getPrintProfiles(string $modelId, array $filters = [], string $sort = 'newest'): array {
+        $conn = getDbConnection();
+
+        $sql = "SELECT p.*, u.username as creator_username, pr.name as printer_name, f.name as filament_name
+                FROM print_profiles p
+                LEFT JOIN users u ON p.user_id = u.id
+                LEFT JOIN printers pr ON p.printer_id = pr.id
+                LEFT JOIN filaments f ON p.filament_id = f.id
+                WHERE p.model_id = ?";
+
+        $params = [$modelId];
+        $types = 's';
+
+        // Add filters
+        if (!empty($filters['verified'])) {
+            $sql .= " AND p.verified = 1";
+        }
+
+        if (!empty($filters['printer_id'])) {
+            $sql .= " AND (p.printer_id = ? OR JSON_CONTAINS(p.compatible_printers, JSON_QUOTE(?)))";
+            $params[] = $filters['printer_id'];
+            $params[] = $filters['printer_id'];
+            $types .= 'ss';
+        }
+
+        if (!empty($filters['material_type'])) {
+            $sql .= " AND JSON_CONTAINS(p.compatible_materials, JSON_QUOTE(?))";
+            $params[] = $filters['material_type'];
+            $types .= 's';
+        }
+
+        if (isset($filters['min_rating']) && $filters['min_rating'] > 0) {
+            $sql .= " AND p.quality_rating >= ?";
+            $params[] = $filters['min_rating'];
+            $types .= 'd';
+        }
+
+        // Sorting
+        switch ($sort) {
+            case 'rating':
+                $sql .= " ORDER BY p.quality_rating DESC, p.rating_count DESC";
+                break;
+            case 'downloads':
+                $sql .= " ORDER BY p.downloads DESC";
+                break;
+            case 'oldest':
+                $sql .= " ORDER BY p.created_at ASC";
+                break;
+            default:
+                $sql .= " ORDER BY p.created_at DESC";
+        }
+
+        $stmt = $conn->prepare($sql);
+        if (!empty($params)) {
+            $stmt->bind_param($types, ...$params);
+        }
+        $stmt->execute();
+        $result = $stmt->get_result();
+
+        $profiles = [];
+        while ($row = $result->fetch_assoc()) {
+            // Decode JSON fields
+            $row['settings'] = $row['settings'] ? json_decode($row['settings'], true) : [];
+            $row['compatible_printers'] = $row['compatible_printers'] ? json_decode($row['compatible_printers'], true) : [];
+            $row['compatible_materials'] = $row['compatible_materials'] ? json_decode($row['compatible_materials'], true) : [];
+            $profiles[] = $row;
+        }
+
+        return $profiles;
+    }
+
+    function getPrintProfile(string $id): ?array {
+        $conn = getDbConnection();
+
+        $stmt = $conn->prepare("SELECT p.*, u.username as creator_username, pr.name as printer_name, f.name as filament_name
+                                FROM print_profiles p
+                                LEFT JOIN users u ON p.user_id = u.id
+                                LEFT JOIN printers pr ON p.printer_id = pr.id
+                                LEFT JOIN filaments f ON p.filament_id = f.id
+                                WHERE p.id = ?");
+        $stmt->bind_param("s", $id);
+        $stmt->execute();
+        $result = $stmt->get_result();
+
+        $profile = $result->fetch_assoc();
+        if ($profile) {
+            // Decode JSON fields
+            $profile['settings'] = $profile['settings'] ? json_decode($profile['settings'], true) : [];
+            $profile['compatible_printers'] = $profile['compatible_printers'] ? json_decode($profile['compatible_printers'], true) : [];
+            $profile['compatible_materials'] = $profile['compatible_materials'] ? json_decode($profile['compatible_materials'], true) : [];
+        }
+
+        return $profile ?: null;
+    }
+
+    function createPrintProfile(array $data): ?string {
+        $conn = getDbConnection();
+        $id = generateId();
+
+        // Encode JSON fields
+        $settings = isset($data['settings']) ? json_encode($data['settings']) : null;
+        $compatiblePrinters = isset($data['compatible_printers']) ? json_encode($data['compatible_printers']) : null;
+        $compatibleMaterials = isset($data['compatible_materials']) ? json_encode($data['compatible_materials']) : null;
+
+        $stmt = $conn->prepare("INSERT INTO print_profiles
+            (id, model_id, user_id, name, description, filename, filesize, settings,
+            printer_id, filament_id, compatible_printers, compatible_materials,
+            layer_height, infill_percentage, supports_required, print_time_minutes, material_used_grams)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+
+        $stmt->bind_param("ssssssisssssdibii",
+            $id,
+            $data['model_id'],
+            $data['user_id'],
+            $data['name'],
+            $data['description'],
+            $data['filename'],
+            $data['filesize'],
+            $settings,
+            $data['printer_id'],
+            $data['filament_id'],
+            $compatiblePrinters,
+            $compatibleMaterials,
+            $data['layer_height'],
+            $data['infill_percentage'],
+            $data['supports_required'],
+            $data['print_time_minutes'],
+            $data['material_used_grams']
+        );
+
+        if ($stmt->execute()) {
+            // Increment profile count on model
+            incrementModelProfileCount($data['model_id']);
+            // Increment profile count on user
+            incrementUserProfileCount($data['user_id']);
+            return $id;
+        }
+
+        return null;
+    }
+
+    function updatePrintProfile(string $id, array $data): bool {
+        $conn = getDbConnection();
+        $updates = [];
+        $types = '';
+        $values = [];
+
+        $allowedFields = [
+            'name' => 's', 'description' => 's', 'printer_id' => 's', 'filament_id' => 's',
+            'layer_height' => 'd', 'infill_percentage' => 'i', 'supports_required' => 'i',
+            'print_time_minutes' => 'i', 'material_used_grams' => 'i', 'verified' => 'i',
+            'verification_method' => 's', 'featured' => 'i'
+        ];
+
+        foreach ($allowedFields as $field => $type) {
+            if (isset($data[$field])) {
+                $updates[] = "$field = ?";
+                $types .= $type;
+                $values[] = $data[$field];
+            }
+        }
+
+        // Handle JSON fields
+        if (isset($data['settings'])) {
+            $updates[] = "settings = ?";
+            $types .= 's';
+            $values[] = json_encode($data['settings']);
+        }
+
+        if (isset($data['compatible_printers'])) {
+            $updates[] = "compatible_printers = ?";
+            $types .= 's';
+            $values[] = json_encode($data['compatible_printers']);
+        }
+
+        if (isset($data['compatible_materials'])) {
+            $updates[] = "compatible_materials = ?";
+            $types .= 's';
+            $values[] = json_encode($data['compatible_materials']);
+        }
+
+        if (empty($updates)) {
+            return false;
+        }
+
+        $types .= 's';
+        $values[] = $id;
+
+        $sql = "UPDATE print_profiles SET " . implode(', ', $updates) . " WHERE id = ?";
+        $stmt = $conn->prepare($sql);
+        $stmt->bind_param($types, ...$values);
+
+        return $stmt->execute();
+    }
+
+    function deletePrintProfile(string $id): bool {
+        $conn = getDbConnection();
+
+        // Get profile info for cleanup
+        $profile = getPrintProfile($id);
+        if (!$profile) {
+            return false;
+        }
+
+        // Delete the file
+        $filepath = UPLOAD_DIR . 'profiles/' . $profile['filename'];
+        if (file_exists($filepath)) {
+            @unlink($filepath);
+        }
+
+        // Delete from database
+        $stmt = $conn->prepare("DELETE FROM print_profiles WHERE id = ?");
+        $stmt->bind_param("s", $id);
+
+        if ($stmt->execute()) {
+            // Decrement counts
+            decrementModelProfileCount($profile['model_id']);
+            decrementUserProfileCount($profile['user_id']);
+            return true;
+        }
+
+        return false;
+    }
+
+    function incrementProfileDownloads(string $id): void {
+        $conn = getDbConnection();
+        $stmt = $conn->prepare("UPDATE print_profiles SET downloads = downloads + 1 WHERE id = ?");
+        $stmt->bind_param("s", $id);
+        $stmt->execute();
+    }
+
+    function incrementProfileViews(string $id): void {
+        $conn = getDbConnection();
+        $stmt = $conn->prepare("UPDATE print_profiles SET views = views + 1 WHERE id = ?");
+        $stmt->bind_param("s", $id);
+        $stmt->execute();
+    }
+
+    function incrementModelProfileCount(string $modelId): void {
+        $conn = getDbConnection();
+        $stmt = $conn->prepare("UPDATE models SET profile_count = profile_count + 1 WHERE id = ?");
+        $stmt->bind_param("s", $modelId);
+        $stmt->execute();
+    }
+
+    function decrementModelProfileCount(string $modelId): void {
+        $conn = getDbConnection();
+        $stmt = $conn->prepare("UPDATE models SET profile_count = GREATEST(0, profile_count - 1) WHERE id = ?");
+        $stmt->bind_param("s", $modelId);
+        $stmt->execute();
+    }
+
+    function incrementUserProfileCount(string $userId): void {
+        $conn = getDbConnection();
+        $stmt = $conn->prepare("UPDATE users SET profile_count = profile_count + 1 WHERE id = ?");
+        $stmt->bind_param("s", $userId);
+        $stmt->execute();
+    }
+
+    function decrementUserProfileCount(string $userId): void {
+        $conn = getDbConnection();
+        $stmt = $conn->prepare("UPDATE users SET profile_count = GREATEST(0, profile_count - 1) WHERE id = ?");
+        $stmt->bind_param("s", $userId);
+        $stmt->execute();
+    }
+
+    /**
+     * Profile Rating Operations
+     */
+    function createProfileRating(array $data): bool {
+        $conn = getDbConnection();
+
+        $stmt = $conn->prepare("INSERT INTO profile_ratings
+            (profile_id, user_id, rating, print_successful, comment, printer_used, filament_used)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            ON DUPLICATE KEY UPDATE
+            rating = VALUES(rating),
+            print_successful = VALUES(print_successful),
+            comment = VALUES(comment),
+            printer_used = VALUES(printer_used),
+            filament_used = VALUES(filament_used)");
+
+        $stmt->bind_param("ssiisss",
+            $data['profile_id'],
+            $data['user_id'],
+            $data['rating'],
+            $data['print_successful'],
+            $data['comment'],
+            $data['printer_used'],
+            $data['filament_used']
+        );
+
+        if ($stmt->execute()) {
+            // Update aggregate rating on profile
+            updateProfileRating($data['profile_id']);
+            return true;
+        }
+
+        return false;
+    }
+
+    function getProfileRatings(string $profileId): array {
+        $conn = getDbConnection();
+
+        $stmt = $conn->prepare("SELECT r.*, u.username, u.avatar
+                                FROM profile_ratings r
+                                LEFT JOIN users u ON r.user_id = u.id
+                                WHERE r.profile_id = ?
+                                ORDER BY r.created_at DESC");
+        $stmt->bind_param("s", $profileId);
+        $stmt->execute();
+        $result = $stmt->get_result();
+
+        $ratings = [];
+        while ($row = $result->fetch_assoc()) {
+            $ratings[] = $row;
+        }
+
+        return $ratings;
+    }
+
+    function getUserProfileRating(string $profileId, string $userId): ?array {
+        $conn = getDbConnection();
+
+        $stmt = $conn->prepare("SELECT * FROM profile_ratings WHERE profile_id = ? AND user_id = ?");
+        $stmt->bind_param("ss", $profileId, $userId);
+        $stmt->execute();
+        $result = $stmt->get_result();
+
+        return $result->fetch_assoc() ?: null;
+    }
+
+    function updateProfileRating(string $profileId): void {
+        $conn = getDbConnection();
+
+        // Calculate average rating and counts
+        $stmt = $conn->prepare("SELECT
+            AVG(rating) as avg_rating,
+            COUNT(*) as rating_count,
+            SUM(CASE WHEN print_successful = 1 THEN 1 ELSE 0 END) as successful,
+            SUM(CASE WHEN print_successful = 0 THEN 1 ELSE 0 END) as failed
+            FROM profile_ratings
+            WHERE profile_id = ?");
+        $stmt->bind_param("s", $profileId);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        $stats = $result->fetch_assoc();
+
+        // Update profile
+        $stmt = $conn->prepare("UPDATE print_profiles
+            SET quality_rating = ?, rating_count = ?, successful_prints = ?, failed_prints = ?
+            WHERE id = ?");
+        $stmt->bind_param("diiis",
+            $stats['avg_rating'],
+            $stats['rating_count'],
+            $stats['successful'],
+            $stats['failed'],
+            $profileId
+        );
+        $stmt->execute();
+    }
+
+    /**
+     * User Printer/Filament Operations
+     */
+    function addUserPrinter(string $userId, string $printerId, ?string $nickname = null): bool {
+        $conn = getDbConnection();
+
+        $stmt = $conn->prepare("INSERT IGNORE INTO user_printers (user_id, printer_id, nickname) VALUES (?, ?, ?)");
+        $stmt->bind_param("sss", $userId, $printerId, $nickname);
+
+        return $stmt->execute();
+    }
+
+    function removeUserPrinter(string $userId, string $printerId): bool {
+        $conn = getDbConnection();
+
+        $stmt = $conn->prepare("DELETE FROM user_printers WHERE user_id = ? AND printer_id = ?");
+        $stmt->bind_param("ss", $userId, $printerId);
+
+        return $stmt->execute();
+    }
+
+    function getUserPrinters(string $userId): array {
+        $conn = getDbConnection();
+
+        $stmt = $conn->prepare("SELECT up.*, p.*
+                                FROM user_printers up
+                                JOIN printers p ON up.printer_id = p.id
+                                WHERE up.user_id = ?
+                                ORDER BY p.manufacturer, p.name");
+        $stmt->bind_param("s", $userId);
+        $stmt->execute();
+        $result = $stmt->get_result();
+
+        $printers = [];
+        while ($row = $result->fetch_assoc()) {
+            $printers[] = $row;
+        }
+
+        return $printers;
+    }
+
+    function addUserFilament(string $userId, string $filamentId, int $quantity = 1): bool {
+        $conn = getDbConnection();
+
+        $stmt = $conn->prepare("INSERT INTO user_filaments (user_id, filament_id, quantity)
+                                VALUES (?, ?, ?)
+                                ON DUPLICATE KEY UPDATE quantity = quantity + VALUES(quantity)");
+        $stmt->bind_param("ssi", $userId, $filamentId, $quantity);
+
+        return $stmt->execute();
+    }
+
+    function removeUserFilament(string $userId, string $filamentId): bool {
+        $conn = getDbConnection();
+
+        $stmt = $conn->prepare("DELETE FROM user_filaments WHERE user_id = ? AND filament_id = ?");
+        $stmt->bind_param("ss", $userId, $filamentId);
+
+        return $stmt->execute();
+    }
+
+    function getUserFilaments(string $userId): array {
+        $conn = getDbConnection();
+
+        $stmt = $conn->prepare("SELECT uf.*, f.*
+                                FROM user_filaments uf
+                                JOIN filaments f ON uf.filament_id = f.id
+                                WHERE uf.user_id = ?
+                                ORDER BY f.material_type, f.manufacturer, f.name");
+        $stmt->bind_param("s", $userId);
+        $stmt->execute();
+        $result = $stmt->get_result();
+
+        $filaments = [];
+        while ($row = $result->fetch_assoc()) {
+            $filaments[] = $row;
+        }
+
+        return $filaments;
+    }
+
+    function getCompatibleProfiles(string $userId, string $modelId): array {
+        $conn = getDbConnection();
+
+        // Get user's printers and filaments
+        $userPrinters = getUserPrinters($userId);
+        $userFilaments = getUserFilaments($userId);
+
+        if (empty($userPrinters) && empty($userFilaments)) {
+            return getPrintProfiles($modelId);
+        }
+
+        $printerIds = array_map(function($p) { return $p['printer_id']; }, $userPrinters);
+        $materialTypes = array_unique(array_map(function($f) { return $f['material_type']; }, $userFilaments));
+
+        // Get profiles compatible with user's equipment
+        $profiles = getPrintProfiles($modelId);
+        $compatible = [];
+
+        foreach ($profiles as $profile) {
+            $printerMatch = false;
+            $materialMatch = false;
+
+            // Check printer compatibility
+            if ($profile['printer_id'] && in_array($profile['printer_id'], $printerIds)) {
+                $printerMatch = true;
+            }
+            if (!empty($profile['compatible_printers'])) {
+                foreach ($printerIds as $pid) {
+                    if (in_array($pid, $profile['compatible_printers'])) {
+                        $printerMatch = true;
+                        break;
+                    }
+                }
+            }
+
+            // Check material compatibility
+            if (!empty($profile['compatible_materials'])) {
+                foreach ($materialTypes as $mat) {
+                    if (in_array($mat, $profile['compatible_materials'])) {
+                        $materialMatch = true;
+                        break;
+                    }
+                }
+            }
+
+            // Add if compatible
+            if ($printerMatch && $materialMatch) {
+                $profile['compatibility_score'] = 100;
+                $compatible[] = $profile;
+            } elseif ($printerMatch || $materialMatch) {
+                $profile['compatibility_score'] = 50;
+                $compatible[] = $profile;
+            }
+        }
+
+        // Sort by compatibility score
+        usort($compatible, function($a, $b) {
+            return $b['compatibility_score'] - $a['compatibility_score'];
+        });
+
+        return $compatible;
+    }
+
 } else {
     // ============================================================================
     // JSON FALLBACK IMPLEMENTATION
@@ -1830,6 +2507,142 @@ function validateInviteCode(string $code): array {
         return ['valid' => false, 'error' => 'This invite code has expired'];
     }
     return ['valid' => true, 'invite' => $invite];
+}
+
+/**
+ * Printer Operations (JSON fallback)
+ */
+function getPrinters(): array {
+    return [];
+}
+
+function getPrinter(string $id): ?array {
+    return null;
+}
+
+function createPrinter(array $data): ?string {
+    return null;
+}
+
+function updatePrinter(string $id, array $data): bool {
+    return false;
+}
+
+function deletePrinter(string $id): bool {
+    return false;
+}
+
+/**
+ * Filament Operations (JSON fallback)
+ */
+function getFilaments(): array {
+    return [];
+}
+
+function getFilament(string $id): ?array {
+    return null;
+}
+
+function createFilament(array $data): ?string {
+    return null;
+}
+
+function updateFilament(string $id, array $data): bool {
+    return false;
+}
+
+function deleteFilament(string $id): bool {
+    return false;
+}
+
+/**
+ * Print Profile Operations (JSON fallback)
+ */
+function getPrintProfiles(string $modelId, array $filters = [], string $sort = 'newest'): array {
+    return [];
+}
+
+function getPrintProfile(string $id): ?array {
+    return null;
+}
+
+function createPrintProfile(array $data): ?string {
+    return null;
+}
+
+function updatePrintProfile(string $id, array $data): bool {
+    return false;
+}
+
+function deletePrintProfile(string $id): bool {
+    return false;
+}
+
+function incrementProfileDownloads(string $id): void {
+}
+
+function incrementProfileViews(string $id): void {
+}
+
+function incrementModelProfileCount(string $modelId): void {
+}
+
+function decrementModelProfileCount(string $modelId): void {
+}
+
+function incrementUserProfileCount(string $userId): void {
+}
+
+function decrementUserProfileCount(string $userId): void {
+}
+
+/**
+ * Profile Rating Operations (JSON fallback)
+ */
+function createProfileRating(array $data): bool {
+    return false;
+}
+
+function getProfileRatings(string $profileId): array {
+    return [];
+}
+
+function getUserProfileRating(string $profileId, string $userId): ?array {
+    return null;
+}
+
+function updateProfileRating(string $profileId): void {
+}
+
+/**
+ * User Printer/Filament Operations (JSON fallback)
+ */
+function addUserPrinter(string $userId, string $printerId, ?string $nickname = null): bool {
+    return false;
+}
+
+function removeUserPrinter(string $userId, string $printerId): bool {
+    return false;
+}
+
+function getUserPrinters(string $userId): array {
+    return [];
+}
+
+function addUserFilament(string $userId, string $filamentId, int $quantity = 1): bool {
+    return false;
+}
+
+function removeUserFilament(string $userId, string $filamentId): bool {
+    return false;
+}
+
+function getUserFilaments(string $userId): array {
+    return [];
+}
+
+function getCompatibleProfiles(string $userId, string $modelId): array {
+    return [];
 }
 
 /**

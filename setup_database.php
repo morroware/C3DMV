@@ -365,12 +365,19 @@ if ($resetDatabase) {
 
     // Drop tables in reverse order of dependencies
     $dropTables = [
+        'profile_ratings',
+        'user_filaments',
+        'user_printers',
+        'print_profiles',
+        'filaments',
+        'printers',
         'favorites',
         'model_photos',
         'model_files',
         'models',
         'categories',
-        'users'
+        'users',
+        'settings'
     ];
 
     foreach ($dropTables as $table) {
@@ -485,6 +492,119 @@ CREATE TABLE IF NOT EXISTS favorites (
     INDEX idx_user_id (user_id),
     INDEX idx_model_id (model_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Printers table
+CREATE TABLE IF NOT EXISTS printers (
+    id VARCHAR(32) PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    manufacturer VARCHAR(100) NULL,
+    build_volume_x INT NULL,
+    build_volume_y INT NULL,
+    build_volume_z INT NULL,
+    nozzle_diameter DECIMAL(4,2) DEFAULT 0.4,
+    description TEXT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_manufacturer (manufacturer),
+    INDEX idx_name (name)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Filaments table
+CREATE TABLE IF NOT EXISTS filaments (
+    id VARCHAR(32) PRIMARY KEY,
+    name VARCHAR(100) NOT NULL,
+    manufacturer VARCHAR(100) NULL,
+    color VARCHAR(50) NULL,
+    material_type VARCHAR(50) NOT NULL,
+    description TEXT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_material_type (material_type),
+    INDEX idx_manufacturer (manufacturer)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Print profiles table
+CREATE TABLE IF NOT EXISTS print_profiles (
+    id VARCHAR(32) PRIMARY KEY,
+    model_id VARCHAR(32) NOT NULL,
+    user_id VARCHAR(32) NOT NULL,
+    name VARCHAR(255) NOT NULL,
+    description TEXT NULL,
+    filename VARCHAR(255) NOT NULL,
+    filesize BIGINT NOT NULL,
+    settings JSON NULL,
+    printer_id VARCHAR(32) NULL,
+    filament_id VARCHAR(32) NULL,
+    compatible_printers JSON NULL,
+    compatible_materials JSON NULL,
+    layer_height DECIMAL(4,2) NULL,
+    infill_percentage INT NULL,
+    supports_required BOOLEAN DEFAULT FALSE,
+    print_time_minutes INT NULL,
+    material_used_grams INT NULL,
+    verified BOOLEAN DEFAULT FALSE,
+    verification_method VARCHAR(50) NULL,
+    quality_rating DECIMAL(3,2) DEFAULT 0,
+    rating_count INT DEFAULT 0,
+    successful_prints INT DEFAULT 0,
+    failed_prints INT DEFAULT 0,
+    downloads INT DEFAULT 0,
+    views INT DEFAULT 0,
+    featured BOOLEAN DEFAULT FALSE,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (model_id) REFERENCES models(id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (printer_id) REFERENCES printers(id) ON DELETE SET NULL,
+    FOREIGN KEY (filament_id) REFERENCES filaments(id) ON DELETE SET NULL,
+    INDEX idx_model_id (model_id),
+    INDEX idx_user_id (user_id),
+    INDEX idx_printer_id (printer_id),
+    INDEX idx_verified (verified),
+    INDEX idx_quality_rating (quality_rating),
+    INDEX idx_created_at (created_at),
+    INDEX idx_featured (featured)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Profile ratings table
+CREATE TABLE IF NOT EXISTS profile_ratings (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    profile_id VARCHAR(32) NOT NULL,
+    user_id VARCHAR(32) NOT NULL,
+    rating INT NOT NULL,
+    print_successful BOOLEAN NULL,
+    comment TEXT NULL,
+    printer_used VARCHAR(32) NULL,
+    filament_used VARCHAR(32) NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (profile_id) REFERENCES print_profiles(id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    UNIQUE KEY unique_user_profile_rating (user_id, profile_id),
+    INDEX idx_profile_id (profile_id),
+    INDEX idx_rating (rating)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- User printers (user's printer garage)
+CREATE TABLE IF NOT EXISTS user_printers (
+    user_id VARCHAR(32) NOT NULL,
+    printer_id VARCHAR(32) NOT NULL,
+    nickname VARCHAR(100) NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (user_id, printer_id),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (printer_id) REFERENCES printers(id) ON DELETE CASCADE,
+    INDEX idx_user_id (user_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- User filaments (user's filament inventory)
+CREATE TABLE IF NOT EXISTS user_filaments (
+    user_id VARCHAR(32) NOT NULL,
+    filament_id VARCHAR(32) NOT NULL,
+    quantity INT DEFAULT 1,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (user_id, filament_id),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (filament_id) REFERENCES filaments(id) ON DELETE CASCADE,
+    INDEX idx_user_id (user_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 ";
 
 // Execute multi-query
@@ -505,7 +625,10 @@ if ($conn->multi_query($sql)) {
 $migrations = [
     "ALTER TABLE users ADD COLUMN IF NOT EXISTS website VARCHAR(255) NULL AFTER location",
     "ALTER TABLE users ADD COLUMN IF NOT EXISTS twitter VARCHAR(100) NULL AFTER website",
-    "ALTER TABLE users ADD COLUMN IF NOT EXISTS github VARCHAR(100) NULL AFTER twitter"
+    "ALTER TABLE users ADD COLUMN IF NOT EXISTS github VARCHAR(100) NULL AFTER twitter",
+    "ALTER TABLE users ADD COLUMN IF NOT EXISTS profile_count INT DEFAULT 0 AFTER download_count",
+    "ALTER TABLE users ADD COLUMN IF NOT EXISTS profile_downloads INT DEFAULT 0 AFTER profile_count",
+    "ALTER TABLE models ADD COLUMN IF NOT EXISTS profile_count INT DEFAULT 0 AFTER file_count"
 ];
 
 foreach ($migrations as $migration) {
@@ -539,6 +662,69 @@ foreach ($categories as $cat) {
 $stmt->close();
 echo "✓ Default categories inserted!\n\n";
 
+// Insert default printers
+$printers = [
+    ['bambu-p1s', 'Bambu Lab P1S', 'Bambu Lab', 256, 256, 256, 0.4, 'High-speed CoreXY 3D printer with enclosed build chamber'],
+    ['bambu-p1p', 'Bambu Lab P1P', 'Bambu Lab', 256, 256, 256, 0.4, 'High-speed CoreXY 3D printer'],
+    ['bambu-x1c', 'Bambu Lab X1 Carbon', 'Bambu Lab', 256, 256, 256, 0.4, 'Premium multi-color 3D printer with AMS'],
+    ['bambu-a1', 'Bambu Lab A1', 'Bambu Lab', 256, 256, 256, 0.4, 'Beginner-friendly CoreXY printer'],
+    ['prusa-mk4', 'Prusa MK4', 'Prusa Research', 250, 210, 220, 0.4, 'Input shaper enabled i3-style printer'],
+    ['prusa-mk3s', 'Prusa i3 MK3S+', 'Prusa Research', 250, 210, 210, 0.4, 'Popular reliable i3-style printer'],
+    ['prusa-xl', 'Prusa XL', 'Prusa Research', 360, 360, 360, 0.4, 'Large format CoreXY with tool changer'],
+    ['prusa-mini', 'Prusa Mini+', 'Prusa Research', 180, 180, 180, 0.4, 'Compact bowden printer'],
+    ['ender3-v3', 'Creality Ender 3 V3', 'Creality', 220, 220, 250, 0.4, 'CoreXZ budget-friendly printer'],
+    ['ender3-s1', 'Creality Ender 3 S1', 'Creality', 220, 220, 270, 0.4, 'Direct drive Ender 3 variant'],
+    ['cr10-smart', 'Creality CR-10 Smart', 'Creality', 300, 300, 400, 0.4, 'Large format auto-leveling printer'],
+    ['anycubic-kobra', 'AnyCubic Kobra 2', 'AnyCubic', 250, 220, 220, 0.4, 'High-speed budget printer'],
+    ['elegoo-neptune', 'Elegoo Neptune 3', 'Elegoo', 225, 225, 280, 0.4, 'Direct drive auto-leveling printer'],
+    ['qidi-xmax', 'QIDI X-Max 3', 'QIDI', 325, 325, 315, 0.4, 'Enclosed industrial printer'],
+    ['voron-24', 'Voron 2.4', 'Voron Design', 350, 350, 350, 0.4, 'DIY CoreXY high-performance printer'],
+    ['generic', 'Generic FDM Printer', 'Generic', 200, 200, 200, 0.4, 'Standard FDM 3D printer']
+];
+
+$stmt = $conn->prepare("INSERT IGNORE INTO printers (id, name, manufacturer, build_volume_x, build_volume_y, build_volume_z, nozzle_diameter, description) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
+foreach ($printers as $printer) {
+    $stmt->bind_param("sssiiids", $printer[0], $printer[1], $printer[2], $printer[3], $printer[4], $printer[5], $printer[6], $printer[7]);
+    $stmt->execute();
+}
+$stmt->close();
+echo "✓ Default printers inserted!\n\n";
+
+// Insert default filaments
+$filaments = [
+    // Generic material types (no specific manufacturer)
+    ['pla-generic', 'PLA (Generic)', null, null, 'PLA', 'Standard PLA filament - easy to print, biodegradable'],
+    ['petg-generic', 'PETG (Generic)', null, null, 'PETG', 'Durable PETG - strong and weather resistant'],
+    ['abs-generic', 'ABS (Generic)', null, null, 'ABS', 'ABS filament - strong and heat resistant'],
+    ['tpu-generic', 'TPU (Generic)', null, null, 'TPU', 'Flexible TPU filament'],
+    ['asa-generic', 'ASA (Generic)', null, null, 'ASA', 'ASA filament - UV and weather resistant'],
+    ['nylon-generic', 'Nylon (Generic)', null, null, 'Nylon', 'Nylon filament - extremely durable'],
+    ['pc-generic', 'Polycarbonate (Generic)', null, null, 'PC', 'PC filament - high strength and heat resistance'],
+
+    // Bambu Lab filaments
+    ['bambu-pla-basic', 'PLA Basic', 'Bambu Lab', 'Various', 'PLA', 'Bambu Lab PLA Basic filament'],
+    ['bambu-pla-matte', 'PLA Matte', 'Bambu Lab', 'Various', 'PLA', 'Bambu Lab PLA Matte filament'],
+    ['bambu-petg-basic', 'PETG Basic', 'Bambu Lab', 'Various', 'PETG', 'Bambu Lab PETG Basic filament'],
+    ['bambu-abs', 'ABS', 'Bambu Lab', 'Various', 'ABS', 'Bambu Lab ABS filament'],
+    ['bambu-asa', 'ASA', 'Bambu Lab', 'Various', 'ASA', 'Bambu Lab ASA filament'],
+    ['bambu-tpu-95a', 'TPU 95A', 'Bambu Lab', 'Various', 'TPU', 'Bambu Lab TPU 95A flexible filament'],
+
+    // Popular brands
+    ['prusament-pla', 'Prusament PLA', 'Prusa Research', 'Various', 'PLA', 'High quality Prusament PLA'],
+    ['prusament-petg', 'Prusament PETG', 'Prusa Research', 'Various', 'PETG', 'High quality Prusament PETG'],
+    ['hatchbox-pla', 'Hatchbox PLA', 'Hatchbox', 'Various', 'PLA', 'Popular Hatchbox PLA filament'],
+    ['esun-pla-plus', 'eSun PLA+', 'eSun', 'Various', 'PLA', 'Enhanced PLA+ with better layer adhesion'],
+    ['overture-petg', 'Overture PETG', 'Overture', 'Various', 'PETG', 'Reliable PETG filament']
+];
+
+$stmt = $conn->prepare("INSERT IGNORE INTO filaments (id, name, manufacturer, color, material_type, description) VALUES (?, ?, ?, ?, ?, ?)");
+foreach ($filaments as $filament) {
+    $stmt->bind_param("ssssss", $filament[0], $filament[1], $filament[2], $filament[3], $filament[4], $filament[5]);
+    $stmt->execute();
+}
+$stmt->close();
+echo "✓ Default filaments inserted!\n\n";
+
 // Create default admin user
 $adminId = 'admin';
 $username = 'admin';
@@ -563,12 +749,20 @@ if (!$isCli) {
     <h2>📊 What Was Created</h2>
     <div class="stats">
         <div class="stat">
-            <div class="stat-value">6</div>
+            <div class="stat-value">13</div>
             <div class="stat-label">Database Tables</div>
         </div>
         <div class="stat">
             <div class="stat-value">8</div>
             <div class="stat-label">Default Categories</div>
+        </div>
+        <div class="stat">
+            <div class="stat-value">16</div>
+            <div class="stat-label">Default Printers</div>
+        </div>
+        <div class="stat">
+            <div class="stat-value">18</div>
+            <div class="stat-label">Default Filaments</div>
         </div>
         <div class="stat">
             <div class="stat-value">1</div>
