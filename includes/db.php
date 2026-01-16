@@ -34,25 +34,7 @@ if (USE_MYSQL) {
     // ============================================================================
     // MYSQL IMPLEMENTATION
     // ============================================================================
-
-    /**
-     * Get database connection (singleton pattern)
-     */
-    function getDbConnection(): mysqli {
-        static $conn = null;
-
-        if ($conn === null) {
-            $conn = new mysqli(DB_HOST, DB_USER, DB_PASS, DB_NAME);
-
-            if ($conn->connect_error) {
-                throw new Exception("Database connection failed: " . $conn->connect_error);
-            }
-
-            $conn->set_charset('utf8mb4');
-        }
-
-        return $conn;
-    }
+    // Note: getDbConnection() is defined in db_config.php
 
     /**
      * User Operations
