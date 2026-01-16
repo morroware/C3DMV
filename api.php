@@ -851,15 +851,510 @@ switch ($action) {
     // ========================================================================
     // STATS
     // ========================================================================
-    
+
     case 'get_stats':
         jsonResponse(['success' => true, 'stats' => getStats()]);
         break;
-    
+
+    // ========================================================================
+    // PRINTERS
+    // ========================================================================
+
+    case 'get_printers':
+        jsonResponse(['success' => true, 'printers' => getPrinters()]);
+        break;
+
+    case 'get_printer':
+        $id = $_GET['id'] ?? '';
+        $printer = getPrinter($id);
+        if ($printer) {
+            jsonResponse(['success' => true, 'printer' => $printer]);
+        } else {
+            jsonResponse(['success' => false, 'error' => 'Printer not found'], 404);
+        }
+        break;
+
+    case 'create_printer':
+        if (!isAdmin()) {
+            jsonResponse(['success' => false, 'error' => 'Admin access required'], 403);
+        }
+
+        $data = [
+            'name' => $_POST['name'] ?? '',
+            'manufacturer' => $_POST['manufacturer'] ?? '',
+            'build_volume_x' => (int)($_POST['build_volume_x'] ?? 200),
+            'build_volume_y' => (int)($_POST['build_volume_y'] ?? 200),
+            'build_volume_z' => (int)($_POST['build_volume_z'] ?? 200),
+            'nozzle_diameter' => (float)($_POST['nozzle_diameter'] ?? 0.4),
+            'description' => $_POST['description'] ?? ''
+        ];
+
+        if (!$data['name']) {
+            jsonResponse(['success' => false, 'error' => 'Printer name required'], 400);
+        }
+
+        $id = createPrinter($data);
+        if ($id) {
+            jsonResponse(['success' => true, 'id' => $id]);
+        } else {
+            jsonResponse(['success' => false, 'error' => 'Failed to create printer'], 500);
+        }
+        break;
+
+    case 'update_printer':
+        if (!isAdmin()) {
+            jsonResponse(['success' => false, 'error' => 'Admin access required'], 403);
+        }
+
+        $id = $_POST['id'] ?? '';
+        $data = [];
+
+        if (isset($_POST['name'])) $data['name'] = $_POST['name'];
+        if (isset($_POST['manufacturer'])) $data['manufacturer'] = $_POST['manufacturer'];
+        if (isset($_POST['build_volume_x'])) $data['build_volume_x'] = (int)$_POST['build_volume_x'];
+        if (isset($_POST['build_volume_y'])) $data['build_volume_y'] = (int)$_POST['build_volume_y'];
+        if (isset($_POST['build_volume_z'])) $data['build_volume_z'] = (int)$_POST['build_volume_z'];
+        if (isset($_POST['nozzle_diameter'])) $data['nozzle_diameter'] = (float)$_POST['nozzle_diameter'];
+        if (isset($_POST['description'])) $data['description'] = $_POST['description'];
+
+        if (updatePrinter($id, $data)) {
+            jsonResponse(['success' => true]);
+        } else {
+            jsonResponse(['success' => false, 'error' => 'Failed to update printer'], 500);
+        }
+        break;
+
+    case 'delete_printer':
+        if (!isAdmin()) {
+            jsonResponse(['success' => false, 'error' => 'Admin access required'], 403);
+        }
+
+        $id = $_POST['id'] ?? '';
+        if (deletePrinter($id)) {
+            jsonResponse(['success' => true]);
+        } else {
+            jsonResponse(['success' => false, 'error' => 'Failed to delete printer'], 500);
+        }
+        break;
+
+    // ========================================================================
+    // FILAMENTS
+    // ========================================================================
+
+    case 'get_filaments':
+        jsonResponse(['success' => true, 'filaments' => getFilaments()]);
+        break;
+
+    case 'get_filament':
+        $id = $_GET['id'] ?? '';
+        $filament = getFilament($id);
+        if ($filament) {
+            jsonResponse(['success' => true, 'filament' => $filament]);
+        } else {
+            jsonResponse(['success' => false, 'error' => 'Filament not found'], 404);
+        }
+        break;
+
+    case 'create_filament':
+        if (!isAdmin()) {
+            jsonResponse(['success' => false, 'error' => 'Admin access required'], 403);
+        }
+
+        $data = [
+            'name' => $_POST['name'] ?? '',
+            'manufacturer' => $_POST['manufacturer'] ?? null,
+            'color' => $_POST['color'] ?? null,
+            'material_type' => $_POST['material_type'] ?? '',
+            'description' => $_POST['description'] ?? ''
+        ];
+
+        if (!$data['name'] || !$data['material_type']) {
+            jsonResponse(['success' => false, 'error' => 'Name and material type required'], 400);
+        }
+
+        $id = createFilament($data);
+        if ($id) {
+            jsonResponse(['success' => true, 'id' => $id]);
+        } else {
+            jsonResponse(['success' => false, 'error' => 'Failed to create filament'], 500);
+        }
+        break;
+
+    case 'update_filament':
+        if (!isAdmin()) {
+            jsonResponse(['success' => false, 'error' => 'Admin access required'], 403);
+        }
+
+        $id = $_POST['id'] ?? '';
+        $data = [];
+
+        if (isset($_POST['name'])) $data['name'] = $_POST['name'];
+        if (isset($_POST['manufacturer'])) $data['manufacturer'] = $_POST['manufacturer'];
+        if (isset($_POST['color'])) $data['color'] = $_POST['color'];
+        if (isset($_POST['material_type'])) $data['material_type'] = $_POST['material_type'];
+        if (isset($_POST['description'])) $data['description'] = $_POST['description'];
+
+        if (updateFilament($id, $data)) {
+            jsonResponse(['success' => true]);
+        } else {
+            jsonResponse(['success' => false, 'error' => 'Failed to update filament'], 500);
+        }
+        break;
+
+    case 'delete_filament':
+        if (!isAdmin()) {
+            jsonResponse(['success' => false, 'error' => 'Admin access required'], 403);
+        }
+
+        $id = $_POST['id'] ?? '';
+        if (deleteFilament($id)) {
+            jsonResponse(['success' => true]);
+        } else {
+            jsonResponse(['success' => false, 'error' => 'Failed to delete filament'], 500);
+        }
+        break;
+
+    // ========================================================================
+    // PRINT PROFILES
+    // ========================================================================
+
+    case 'get_profiles':
+        $modelId = $_GET['model_id'] ?? '';
+        if (!$modelId) {
+            jsonResponse(['success' => false, 'error' => 'Model ID required'], 400);
+        }
+
+        $filters = [];
+        if (isset($_GET['verified'])) $filters['verified'] = (bool)$_GET['verified'];
+        if (isset($_GET['printer_id'])) $filters['printer_id'] = $_GET['printer_id'];
+        if (isset($_GET['material_type'])) $filters['material_type'] = $_GET['material_type'];
+        if (isset($_GET['min_rating'])) $filters['min_rating'] = (float)$_GET['min_rating'];
+
+        $sort = $_GET['sort'] ?? 'newest';
+
+        $profiles = getPrintProfiles($modelId, $filters, $sort);
+        jsonResponse(['success' => true, 'profiles' => $profiles]);
+        break;
+
+    case 'get_profile':
+        $id = $_GET['id'] ?? '';
+        $profile = getPrintProfile($id);
+        if ($profile) {
+            // Increment view count
+            incrementProfileViews($id);
+            jsonResponse(['success' => true, 'profile' => $profile]);
+        } else {
+            jsonResponse(['success' => false, 'error' => 'Profile not found'], 404);
+        }
+        break;
+
+    case 'upload_profile':
+        if (!isLoggedIn()) {
+            jsonResponse(['success' => false, 'error' => 'Login required'], 401);
+        }
+
+        require_once __DIR__ . '/includes/profile_parser.php';
+
+        $modelId = $_POST['model_id'] ?? '';
+        if (!$modelId) {
+            jsonResponse(['success' => false, 'error' => 'Model ID required'], 400);
+        }
+
+        // Verify model exists
+        $model = getModel($modelId);
+        if (!$model) {
+            jsonResponse(['success' => false, 'error' => 'Model not found'], 404);
+        }
+
+        // Check file upload
+        if (!isset($_FILES['profile_file']) || $_FILES['profile_file']['error'] !== UPLOAD_ERR_OK) {
+            jsonResponse(['success' => false, 'error' => 'Please upload a .3mf file'], 400);
+        }
+
+        $file = $_FILES['profile_file'];
+
+        // Validate file
+        $validation = validate3mfFile($file['tmp_name']);
+        if (!$validation['valid']) {
+            jsonResponse(['success' => false, 'error' => $validation['error']], 400);
+        }
+
+        // Parse profile settings
+        $parseResult = parse3mfFile($file['tmp_name']);
+        if (isset($parseResult['error'])) {
+            jsonResponse(['success' => false, 'error' => 'Failed to parse profile: ' . $parseResult['error']], 400);
+        }
+
+        // Generate unique filename
+        $ext = '.3mf';
+        $filename = generateId() . '_' . preg_replace('/[^a-zA-Z0-9._-]/', '', pathinfo($file['name'], PATHINFO_FILENAME)) . $ext;
+        $filepath = UPLOAD_DIR . 'profiles/' . $filename;
+
+        // Move file
+        if (!move_uploaded_file($file['tmp_name'], $filepath)) {
+            jsonResponse(['success' => false, 'error' => 'Failed to save file'], 500);
+        }
+
+        // Prepare profile data
+        $data = [
+            'model_id' => $modelId,
+            'user_id' => $_SESSION['user_id'],
+            'name' => $_POST['name'] ?? 'Print Profile',
+            'description' => $_POST['description'] ?? '',
+            'filename' => $filename,
+            'filesize' => filesize($filepath),
+            'settings' => $parseResult['settings'] ?? [],
+            'printer_id' => $_POST['printer_id'] ?? null,
+            'filament_id' => $_POST['filament_id'] ?? null,
+            'compatible_printers' => isset($_POST['compatible_printers']) ? json_decode($_POST['compatible_printers'], true) : [],
+            'compatible_materials' => isset($_POST['compatible_materials']) ? json_decode($_POST['compatible_materials'], true) : [],
+            'layer_height' => $parseResult['settings']['layer_height'] ?? null,
+            'infill_percentage' => $parseResult['settings']['infill_percentage'] ?? null,
+            'supports_required' => $parseResult['settings']['supports_required'] ?? false,
+            'print_time_minutes' => isset($_POST['print_time']) ? (int)$_POST['print_time'] : null,
+            'material_used_grams' => isset($_POST['material_used']) ? (int)$_POST['material_used'] : null
+        ];
+
+        $profileId = createPrintProfile($data);
+        if ($profileId) {
+            jsonResponse(['success' => true, 'profile_id' => $profileId]);
+        } else {
+            @unlink($filepath);
+            jsonResponse(['success' => false, 'error' => 'Failed to create profile'], 500);
+        }
+        break;
+
+    case 'update_profile':
+        if (!isLoggedIn()) {
+            jsonResponse(['success' => false, 'error' => 'Login required'], 401);
+        }
+
+        $id = $_POST['id'] ?? '';
+        $profile = getPrintProfile($id);
+
+        if (!$profile) {
+            jsonResponse(['success' => false, 'error' => 'Profile not found'], 404);
+        }
+
+        // Check ownership or admin
+        if ($profile['user_id'] !== $_SESSION['user_id'] && !isAdmin()) {
+            jsonResponse(['success' => false, 'error' => 'Permission denied'], 403);
+        }
+
+        $data = [];
+        if (isset($_POST['name'])) $data['name'] = $_POST['name'];
+        if (isset($_POST['description'])) $data['description'] = $_POST['description'];
+        if (isset($_POST['printer_id'])) $data['printer_id'] = $_POST['printer_id'];
+        if (isset($_POST['filament_id'])) $data['filament_id'] = $_POST['filament_id'];
+        if (isset($_POST['compatible_printers'])) $data['compatible_printers'] = json_decode($_POST['compatible_printers'], true);
+        if (isset($_POST['compatible_materials'])) $data['compatible_materials'] = json_decode($_POST['compatible_materials'], true);
+        if (isset($_POST['layer_height'])) $data['layer_height'] = (float)$_POST['layer_height'];
+        if (isset($_POST['infill_percentage'])) $data['infill_percentage'] = (int)$_POST['infill_percentage'];
+        if (isset($_POST['supports_required'])) $data['supports_required'] = (bool)$_POST['supports_required'];
+
+        // Admin-only fields
+        if (isAdmin()) {
+            if (isset($_POST['verified'])) $data['verified'] = (bool)$_POST['verified'];
+            if (isset($_POST['verification_method'])) $data['verification_method'] = $_POST['verification_method'];
+            if (isset($_POST['featured'])) $data['featured'] = (bool)$_POST['featured'];
+        }
+
+        if (updatePrintProfile($id, $data)) {
+            jsonResponse(['success' => true]);
+        } else {
+            jsonResponse(['success' => false, 'error' => 'Failed to update profile'], 500);
+        }
+        break;
+
+    case 'delete_profile':
+        if (!isLoggedIn()) {
+            jsonResponse(['success' => false, 'error' => 'Login required'], 401);
+        }
+
+        $id = $_POST['id'] ?? '';
+        $profile = getPrintProfile($id);
+
+        if (!$profile) {
+            jsonResponse(['success' => false, 'error' => 'Profile not found'], 404);
+        }
+
+        // Check ownership or admin
+        if ($profile['user_id'] !== $_SESSION['user_id'] && !isAdmin()) {
+            jsonResponse(['success' => false, 'error' => 'Permission denied'], 403);
+        }
+
+        if (deletePrintProfile($id)) {
+            jsonResponse(['success' => true]);
+        } else {
+            jsonResponse(['success' => false, 'error' => 'Failed to delete profile'], 500);
+        }
+        break;
+
+    case 'download_profile':
+        $id = $_GET['id'] ?? '';
+        $profile = getPrintProfile($id);
+
+        if (!$profile) {
+            jsonResponse(['success' => false, 'error' => 'Profile not found'], 404);
+        }
+
+        $filepath = UPLOAD_DIR . 'profiles/' . $profile['filename'];
+        if (!file_exists($filepath)) {
+            jsonResponse(['success' => false, 'error' => 'Profile file not found'], 404);
+        }
+
+        // Increment download count
+        incrementProfileDownloads($id);
+
+        // Send file
+        header('Content-Type: model/3mf');
+        header('Content-Disposition: attachment; filename="' . basename($profile['filename']) . '"');
+        header('Content-Length: ' . filesize($filepath));
+        readfile($filepath);
+        exit;
+
+    case 'rate_profile':
+        if (!isLoggedIn()) {
+            jsonResponse(['success' => false, 'error' => 'Login required'], 401);
+        }
+
+        $data = [
+            'profile_id' => $_POST['profile_id'] ?? '',
+            'user_id' => $_SESSION['user_id'],
+            'rating' => (int)($_POST['rating'] ?? 0),
+            'print_successful' => isset($_POST['print_successful']) ? (bool)$_POST['print_successful'] : null,
+            'comment' => $_POST['comment'] ?? '',
+            'printer_used' => $_POST['printer_used'] ?? null,
+            'filament_used' => $_POST['filament_used'] ?? null
+        ];
+
+        if (!$data['profile_id'] || $data['rating'] < 1 || $data['rating'] > 5) {
+            jsonResponse(['success' => false, 'error' => 'Valid profile ID and rating (1-5) required'], 400);
+        }
+
+        if (createProfileRating($data)) {
+            jsonResponse(['success' => true]);
+        } else {
+            jsonResponse(['success' => false, 'error' => 'Failed to save rating'], 500);
+        }
+        break;
+
+    case 'get_profile_ratings':
+        $profileId = $_GET['profile_id'] ?? '';
+        if (!$profileId) {
+            jsonResponse(['success' => false, 'error' => 'Profile ID required'], 400);
+        }
+
+        $ratings = getProfileRatings($profileId);
+        jsonResponse(['success' => true, 'ratings' => $ratings]);
+        break;
+
+    // ========================================================================
+    // USER EQUIPMENT
+    // ========================================================================
+
+    case 'add_user_printer':
+        if (!isLoggedIn()) {
+            jsonResponse(['success' => false, 'error' => 'Login required'], 401);
+        }
+
+        $printerId = $_POST['printer_id'] ?? '';
+        $nickname = $_POST['nickname'] ?? null;
+
+        if (!$printerId) {
+            jsonResponse(['success' => false, 'error' => 'Printer ID required'], 400);
+        }
+
+        if (addUserPrinter($_SESSION['user_id'], $printerId, $nickname)) {
+            jsonResponse(['success' => true]);
+        } else {
+            jsonResponse(['success' => false, 'error' => 'Failed to add printer'], 500);
+        }
+        break;
+
+    case 'remove_user_printer':
+        if (!isLoggedIn()) {
+            jsonResponse(['success' => false, 'error' => 'Login required'], 401);
+        }
+
+        $printerId = $_POST['printer_id'] ?? '';
+
+        if (removeUserPrinter($_SESSION['user_id'], $printerId)) {
+            jsonResponse(['success' => true]);
+        } else {
+            jsonResponse(['success' => false, 'error' => 'Failed to remove printer'], 500);
+        }
+        break;
+
+    case 'get_user_printers':
+        if (!isLoggedIn()) {
+            jsonResponse(['success' => false, 'error' => 'Login required'], 401);
+        }
+
+        $printers = getUserPrinters($_SESSION['user_id']);
+        jsonResponse(['success' => true, 'printers' => $printers]);
+        break;
+
+    case 'add_user_filament':
+        if (!isLoggedIn()) {
+            jsonResponse(['success' => false, 'error' => 'Login required'], 401);
+        }
+
+        $filamentId = $_POST['filament_id'] ?? '';
+        $quantity = (int)($_POST['quantity'] ?? 1);
+
+        if (!$filamentId) {
+            jsonResponse(['success' => false, 'error' => 'Filament ID required'], 400);
+        }
+
+        if (addUserFilament($_SESSION['user_id'], $filamentId, $quantity)) {
+            jsonResponse(['success' => true]);
+        } else {
+            jsonResponse(['success' => false, 'error' => 'Failed to add filament'], 500);
+        }
+        break;
+
+    case 'remove_user_filament':
+        if (!isLoggedIn()) {
+            jsonResponse(['success' => false, 'error' => 'Login required'], 401);
+        }
+
+        $filamentId = $_POST['filament_id'] ?? '';
+
+        if (removeUserFilament($_SESSION['user_id'], $filamentId)) {
+            jsonResponse(['success' => true]);
+        } else {
+            jsonResponse(['success' => false, 'error' => 'Failed to remove filament'], 500);
+        }
+        break;
+
+    case 'get_user_filaments':
+        if (!isLoggedIn()) {
+            jsonResponse(['success' => false, 'error' => 'Login required'], 401);
+        }
+
+        $filaments = getUserFilaments($_SESSION['user_id']);
+        jsonResponse(['success' => true, 'filaments' => $filaments]);
+        break;
+
+    case 'get_compatible_profiles':
+        if (!isLoggedIn()) {
+            jsonResponse(['success' => false, 'error' => 'Login required'], 401);
+        }
+
+        $modelId = $_GET['model_id'] ?? '';
+        if (!$modelId) {
+            jsonResponse(['success' => false, 'error' => 'Model ID required'], 400);
+        }
+
+        $profiles = getCompatibleProfiles($_SESSION['user_id'], $modelId);
+        jsonResponse(['success' => true, 'profiles' => $profiles]);
+        break;
+
     // ========================================================================
     // DEFAULT
     // ========================================================================
-    
+
     default:
         jsonResponse(['success' => false, 'error' => 'Invalid action'], 400);
 }
