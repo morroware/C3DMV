@@ -1198,19 +1198,68 @@ switch ($action) {
             jsonResponse(['success' => false, 'error' => 'Profile not found'], 404);
         }
 
-        $filepath = UPLOADS_DIR . 'profiles/' . $profile['filename'];
-        if (!file_exists($filepath)) {
+        // Get the model to include its files
+        $model = getModel($profile['model_id']);
+        if (!$model) {
+            jsonResponse(['success' => false, 'error' => 'Model not found'], 404);
+        }
+
+        $profilePath = UPLOADS_DIR . 'profiles/' . $profile['filename'];
+        if (!file_exists($profilePath)) {
             jsonResponse(['success' => false, 'error' => 'Profile file not found'], 404);
         }
 
         // Increment download count
         incrementProfileDownloads($id);
 
-        // Send file
-        header('Content-Type: model/3mf');
-        header('Content-Disposition: attachment; filename="' . basename($profile['filename']) . '"');
-        header('Content-Length: ' . filesize($filepath));
-        readfile($filepath);
+        // Create a ZIP file containing the profile and model files
+        $zipFilename = sys_get_temp_dir() . '/profile_' . $id . '_' . time() . '.zip';
+        $zip = new ZipArchive();
+
+        if ($zip->open($zipFilename, ZipArchive::CREATE | ZipArchive::OVERWRITE) !== true) {
+            jsonResponse(['success' => false, 'error' => 'Failed to create download package'], 500);
+        }
+
+        // Add the .3mf profile file
+        $zip->addFile($profilePath, 'profile_' . basename($profile['filename']));
+
+        // Add all model files (STL, OBJ, etc.)
+        foreach ($model['files'] as $file) {
+            $modelFilePath = UPLOADS_DIR . $file['filename'];
+            if (file_exists($modelFilePath)) {
+                $zip->addFile($modelFilePath, 'model_' . basename($file['filename']));
+            }
+        }
+
+        // Add a README with instructions
+        $readme = "Print Profile Package\n";
+        $readme .= "=====================\n\n";
+        $readme .= "Model: {$model['name']}\n";
+        $readme .= "Profile: {$profile['name']}\n";
+        $readme .= "Printer: {$profile['printer_name']}\n";
+        $readme .= "Filament: {$profile['filament_name']}\n\n";
+        $readme .= "Instructions:\n";
+        $readme .= "1. Open the profile_*.3mf file in your slicer\n";
+        $readme .= "   This will load the model with all settings pre-configured.\n\n";
+        $readme .= "2. The model_* files are the original model files\n";
+        $readme .= "   Use these if you want to apply the settings manually or use a different slicer.\n\n";
+        if (!empty($profile['notes'])) {
+            $readme .= "Profile Notes:\n{$profile['notes']}\n\n";
+        }
+        $readme .= "Happy Printing!\n";
+
+        $zip->addFromString('README.txt', $readme);
+
+        $zip->close();
+
+        // Send the ZIP file
+        header('Content-Type: application/zip');
+        header('Content-Disposition: attachment; filename="' . sanitize($model['name']) . '_profile.zip"');
+        header('Content-Length: ' . filesize($zipFilename));
+        readfile($zipFilename);
+
+        // Clean up temp file
+        unlink($zipFilename);
         exit;
 
     case 'rate_profile':

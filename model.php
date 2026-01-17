@@ -350,7 +350,7 @@ foreach ($relatedModels as $index => $rm) {
 
                     <!-- Print Profiles Section -->
                     <div class="card" style="margin-top: 24px; padding: 24px;" id="print-profiles-section">
-                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
                             <h3 style="margin: 0;"><i class="fas fa-sliders-h"></i> Print Profiles</h3>
                             <?php if (isLoggedIn()): ?>
                             <button class="btn btn-primary btn-sm" onclick="openUploadProfileModal()">
@@ -358,6 +358,9 @@ foreach ($relatedModels as $index => $rm) {
                             </button>
                             <?php endif; ?>
                         </div>
+                        <p style="color: var(--text-secondary); font-size: 0.9em; margin-bottom: 16px;">
+                            <i class="fas fa-info-circle"></i> Downloads include the .3mf profile with pre-configured settings AND the original model files
+                        </p>
 
                         <!-- Profile Filters -->
                         <div class="profile-filters" style="display: flex; gap: 12px; margin-bottom: 16px; flex-wrap: wrap;">
@@ -1858,7 +1861,7 @@ foreach ($relatedModels as $index => $rm) {
 
                     <div class="profile-card-actions">
                         <button class="btn btn-primary" onclick="downloadProfile('${profile.id}')">
-                            <i class="fas fa-download"></i> Download .3mf
+                            <i class="fas fa-download"></i> Download Package
                         </button>
                         <button class="btn btn-secondary" onclick="viewProfileDetails('${profile.id}')">
                             <i class="fas fa-info-circle"></i> Details
@@ -1894,6 +1897,7 @@ foreach ($relatedModels as $index => $rm) {
 
         // Download profile
         async function downloadProfile(profileId) {
+            Toast.info('Preparing download package with profile and model files...');
             window.location.href = `api.php?action=download_profile&id=${profileId}`;
         }
 
